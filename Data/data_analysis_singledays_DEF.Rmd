@@ -453,7 +453,7 @@ bart_estimation<-function(Y_t, X_t, n_t){
   
   return(bart_fit)
 }
-parallel_funct_bart<-function(dataset){
+parallel_funct_bart<-function(dataset, y_list){
   X_0 <- dataset[dataset$treat==0,31:57]
   X_0$monitor <- 1*(X_0$monitor=="CSN")
   X_0$rural <- 1*(X_0$rural=="Mix") + 2*(X_0$rural=="Urban")
@@ -481,7 +481,8 @@ parallel_funct_bart<-function(dataset){
   return(tau_all)
 }
 
-bart_00 <- parallel_funct_bart(dataset = def_dataset)
+bart_00 <- parallel_funct_bart(dataset = def_dataset, 
+                               y_list=chem_cell)
 ```
 
 ### BCF
@@ -510,8 +511,14 @@ BCF_estimation<-function(Y_t, X_t, n_t){
     
     return(tau=rowMeans(bcf_fit$tau))
   }
+   
+  # estimation
+  bcf_fit_all <- sapply(1:dim_Y, function(y) extract_bcf_results(each_Y = Y_obs[,y]))
   
-parallel_funct_bcf<-function(dataset, threshold=0){
+  return(list(bcf_fit_all))
+}
+  
+parallel_funct_bcf<-function(dataset, threshold=0, y_list){
   
   X_0 <- dataset[dataset$treat==0,31:57]
   X_0$monitor <- 1*(X_0$monitor=="CSN")
@@ -541,7 +548,9 @@ parallel_funct_bcf<-function(dataset, threshold=0){
 }
 
 
-bcf_00 <- parallel_funct_bcf(dataset = def_dataset, threshold=0)
+bcf_00 <- parallel_funct_bcf(dataset = def_dataset, 
+                             threshold=0,
+                             y_list=chem_cell)
 ```
 
 ```{r echo=FALSE}

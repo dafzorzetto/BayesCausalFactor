@@ -16,6 +16,7 @@ knitr::opts_chunk$set(
 ```
 
 Import libraries
+
 ```{r message=FALSE, warning=FALSE}
 library(arrow)
 library(readr)
@@ -38,6 +39,7 @@ library(corrplot)
 # Merging datasets
 
 Upload data
+
 ```{r upload_data, eval=FALSE, message=FALSE, warning=FALSE}
 setwd("/Users/dafnezorzetto/Documents/GitHub/CausalFA/data")
 
@@ -77,6 +79,7 @@ setwd("/Users/dafnezorzetto/Documents/GitHub/CausalFA/data")
 
 # model's Gibbs sampler
 source("../src/10_causal_fa_Lt_stand_mixfree_reg.R")
+source("../src/2_causal_fa_Lt_X.R")
 source("../src/bart_bcf.R")
 ```
 
@@ -237,8 +240,8 @@ dataset_2014_summer<-merge_data_days(year=2014,
 
 For each month:
 
-* checking balance
-* visualization of control and treated groups geographically
+-   checking balance
+-   visualization of control and treated groups geographically
 
 **The threshould for wildfire smoke days changes for each month.** June and september is $0$, while for july and august is $5$. See histogram for wildfire smoke days distribution.
 
@@ -284,8 +287,9 @@ matching<-function(dataset, threshold){
 
 matched_summer14<-matching(dataset=dataset_2014_summer, threshold=0)
 ```
+
 ```{r echo=FALSE}
-load("~/Documents/GitHub/BayesCausalFactor/Data/dataset_chemicals.RData")
+load("~/Documents/GitHub/BayesCausalFactor/Data/results_application_00.RData")
 ```
 
 ```{r eval=TRUE, echo=TRUE}
@@ -327,7 +331,8 @@ table_months<-round(cbind(means_chemical[,2]-means_chemical[,1],
 colnames(table_months)<-c("summer","july","aug","sept")
 table_months
 ```
-# Analysis correlation 
+
+# Analysis correlation
 
 ```{r correlation}
 
@@ -350,6 +355,7 @@ corr_plot_function(dataset=def_dataset, threshold=0)
 # Model estimation
 
 ### Our proposed model
+
 ```{r model, eval=FALSE, message=TRUE, warning=TRUE}
 
 select_factors<-function(dataset){
@@ -419,10 +425,60 @@ select_factors(dataset = def_dataset)
 model_00_paper<-estimation_model(dataset = def_dataset, 
                                 factors=c(10,10), 
                                 y_list=chem_cell)
+```
 
+### Standard Factor Model
+
+```{r fa_model, eval=FALSE, message=TRUE, warning=TRUE}
+
+estimation_standard_FactorModel<-function(dataset, factors=c(5,5), y_list){
+  
+  X_0 <- dataset[dataset$treat==0,31:57]
+  X_0$monitor <- 1*(X_0$monitor=="CSN")
+  X_0$rural <- 1*(X_0$rural=="Mix") + 2*(X_0$rural=="Urban")
+  X_0$aug <- 1*(X_0$month==8)
+  X_0$sept <- 1*(X_0$month==9)
+  X_0 <- X_0[,-27]
+  X_0[,c(1:2,5:26)] <- scale(X_0[,c(1:2,5:26)])
+  
+  X_1 <- dataset[dataset$treat==1,31:57]
+  X_1$monitor <- 1*(X_1$monitor=="CSN")
+  X_1$rural <- 1*(X_1$rural=="Mix") + 2*(X_1$rural=="Urban")
+  X_1$aug <- 1*(X_1$month==8)
+  X_1$sept <- 1*(X_1$month==9)
+  X_1 <- X_1[,-27]
+  X_1[,c(1:2,5:26)] <- scale(X_1[,c(1:2,5:26)])
+  
+  Y_0 <- data.matrix(dataset[dataset$treat==0,y_list])
+  Y_1 <- data.matrix(dataset[dataset$treat==1,y_list])
+  
+  st_FA <- causal_fa_Lt_X(Y_t=list(Y_0,Y_1), 
+                          j_t=factors,
+                          X_t = list(rbind(1,t(X_0)),rbind(1,t(X_1))),
+                          outputlevel = 2,
+                          nrun = 8000, burn = 6500,
+                          nprint = 500)
+  Y_1_est<-matrix(0,dim(dataset)[1],dim(Y_0)[2])
+  Y_0_est<-matrix(0,dim(dataset)[1],dim(Y_0)[2])
+  Y_1_est[dataset$treat==0,]<-st_FA$Y_mis_lt[[1]]
+  Y_1_est[dataset$treat==1,]<-st_FA$Y_obs_lt[[2]]
+  Y_0_est[dataset$treat==0,]<-st_FA$Y_obs_lt[[1]]
+  Y_0_est[dataset$treat==1,]<-st_FA$Y_mis_lt[[2]]
+  
+  CE_across <- apply(st_FA$Y_obs_all[[2]]-st_FA$Y_mis_all[[2]],2:3,mean)/2 +
+    apply(st_FA$Y_mis_all[[1]]-st_FA$Y_obs_all[[1]],2:3,mean)/2
+    
+  return(list(Y_1_est=Y_1_est,Y_0_est=Y_0_est, 
+              CE_across=CE_across))
+}
+
+stand_FM_00<-estimation_standard_FactorModel(dataset = def_dataset, 
+                                factors=c(10,10), 
+                                y_list=chem_cell)
 ```
 
 ### BART
+
 ```{r bart, eval=FALSE, message=TRUE, warning=TRUE}
 bart_estimation<-function(Y_t, X_t, n_t){
   set.seed(1)
@@ -486,6 +542,7 @@ bart_00 <- parallel_funct_bart(dataset = def_dataset,
 ```
 
 ### BCF
+
 ```{r bcf, eval=FALSE, message=TRUE, warning=TRUE}
 BCF_estimation<-function(Y_t, X_t, n_t){
   set.seed(1)
@@ -547,30 +604,26 @@ parallel_funct_bcf<-function(dataset, threshold=0, y_list){
   return(bcf_model)
 }
 
-
 bcf_00 <- parallel_funct_bcf(dataset = def_dataset, 
                              threshold=0,
                              y_list=chem_cell)
-```
-
-```{r echo=FALSE}
-load("~/Documents/GitHub/CausalFA/sand/data_singleday_results.RData")
 ```
 
 ### Results: Causal effects
 
 Comparison of the causal effect $E[Y_k(1)-Y_k(0)]$ for $k$ indicate the chemical component:
 
- * our proposed model: the boxplots indicate the posterior distribution
- * BART: the gray star and rhombus indicate the posterior mean and median 
+-   our proposed model: the boxplots indicate the posterior distribution
+-   BART: the gray star and rhombus indicate the posterior mean and median
 
 ```{r plot_results_ce_function, echo=FALSE}
 
-plot_aspaper_vertical<-function(ce_ourmodel,bart_results,month){
+plot_aspaper_vertical<-function(ce_ourmodel,bart_results,bcf_results,month){
   
-  mean_our=apply(ce_ourmodel[, 1:1500],1,median)
-CI_our=apply(ce_ourmodel[, 1:1500],1, quantile, probs=c(0.05,0.95))
+  mean_our=apply(ce_ourmodel[, 1001:1500],1,median)
+CI_our=apply(ce_ourmodel[, 1001:1500],1, quantile, probs=c(0.05,0.95))
 CI_bart=apply(bart_results,2, quantile, probs=c(0.05,0.95))
+CI_bcf=apply(bcf_results,2, quantile, probs=c(0.05,0.95))
 colors <- colorRampPalette(brewer.pal(11, "Spectral"))(26)
 
 colors_paper <- c(rep("#694573",3), rep("#8E414E",3),
@@ -579,50 +632,179 @@ colors_paper <- c(rep("#694573",3), rep("#8E414E",3),
                   rep("#A86A8C",2), rep("#72A3A8",2))
 
 plot(mean_our,27:1, pch=16, col=colors_paper,
-     xlim=c(-0.6,0.8),      #c(min(min(CI_our),0), max(CI_our)),
-     ylab='', xlab='casusal effects', main=month,
-     yaxt = "n",bty = "n", cex=1.2)
-segments(CI_our[1,], 27:1, CI_our[2,],27:1, col=colors_paper, lwd = 3)
-points( apply(bart_results, 2, mean),27:1+0.3, col="black", cex=0.5)
-segments(CI_bart[1,], 27:1+0.3, CI_bart[2,],27:1+0.3, col="black")
+     xlim=c(min(min(CI_our),0), min(max(CI_our),120)),
+     ylab='', xlab=' ', main=month,
+     yaxt = "n",bty = "n", cex=1)
+segments(CI_our[1,], 27:1, CI_our[2,],27:1, col=colors_paper, lwd = 2)
+points( apply(bart_results, 2, mean),27:1+0.2, col="black", cex=0.5)
+points( apply(bcf_results, 2, mean),27:1+0.4, col="red", cex=0.5)
+segments(CI_bart[1,], 27:1+0.2, CI_bart[2,],27:1+0.2, col="black")
+segments(CI_bcf[1,], 27:1+0.4, CI_bcf[2,],27:1+0.4, col="red")
 text(par("usr")[1],27:1, cex=0.7,
      names_chemicals, srt = 0, xpd = TRUE, adj = 1)
 abline(v=0, col="gray")
 }
 
+plot_aspaper_nobart<-function(ce_ourmodel,month, gray_line, lims){
+  
+  mean_our=apply(ce_ourmodel,1,median)
+CI_our=apply(ce_ourmodel,1, quantile, probs=c(0.05,0.95))
 
+colors_paper <- c(rep("#694573",3), rep("#8E414E",3),
+                  rep("#F99D5B",8), rep("#FDCE57",2),
+                  rep("#BDDEF2",2), rep("#86BF6B",5),
+                  rep("#A86A8C",2), rep("#72A3A8",2))
 
+plot(mean_our,27:1, pch=16, col=colors_paper,
+     xlim=c(min(min(CI_our),lims[1]), min(max(CI_our),lims[2])),
+     ylab='', xlab='', main=month,
+     yaxt = "n",bty = "n", cex=1)
+segments(CI_our[1,], 27:1, CI_our[2,],27:1, col=colors_paper, lwd = 2)
+abline(v=gray_line, col="gray")
+text(par("usr")[1],27:1, cex=0.7,
+     names_chemicals, srt = 0, xpd = TRUE, adj = 1)
+}
 
 ```
 
 ```{r plot_results_ce}
-par(mfrow = c(1, 3))
-plot_aspaper_vertical(ce_ourmodel=(model_00_paper$CE_across),
-             bart_results= (bart_00),
-             month='thr 0.0')
-plot_aspaper_vertical(ce_ourmodel=(model_02_paper$CE_across),
-             bart_results= (bart_02),
-             month='thr 0.2')
-plot_aspaper_vertical(ce_ourmodel=(model_05_paper$CE_across),
-             bart_results= (bart_05),
-             month='thr 0.5')
-plot_aspaper_vertical(ce_ourmodel=(model_10_paper$CE_across),
-             bart_results= (bart_10),
-             month='thr 1.0')
-plot_aspaper_vertical(ce_ourmodel=(model_20_paper$CE_across),
-             bart_results= (bart_20),
-             month='thr 2.0')
-plot_aspaper_vertical(ce_ourmodel=(model_50_paper$CE_across),
-             bart_results= (bart_50),
-             month='thr 5.0')
+par(mfrow = c(1, 2))
+plot_aspaper_vertical(ce_ourmodel=model_00_paper$CE_across,
+                      bart_results=bart_00,
+                      bcf_results=bcf_00[[1]],
+                      month='Y(1)-Y(0)')
 plot(0:10,0:10,type = 'n', yaxt = "n",bty = "n",xaxt = "n",ylab='',xlab='')
 op <- par(cex = 0.5)
-legend(-1,5, c("Our model (CRFM):","pos. median","CI 95%"," ","BART:","pos. median","CI 95%"),
-       pch=c(NA,19,NA,NA,NA,19,NA), col=c(NA,2,2,NA,NA,1,1), lty=c(NA,NA,1,NA,NA,NA,1), bty = "n")
+legend(0,5, c("Our model (CRFM):","pos. median","CI 95%"," ","BART:",
+              "pos. median","CI 95%"," ","BCF:","pos. median","CI 95%"),
+       pch=c(NA,19,NA,NA,NA,19,NA,NA,NA,19,NA), 
+       col=c(NA,"gray","gray",NA,NA,1,1,NA,NA,2,2), 
+       lty=c(NA,NA,1,NA,NA,NA,1,NA,NA,NA,1), bty = "n")
+
+par(mfrow = c(1, 1))
+plot_aspaper_nobart(ce_ourmodel=model_00_paper$CE_across,
+                     lims = c(0,50),
+                      month='Y(1)-Y(0)',
+                    gray_line=0)
+
+par(mfrow = c(1, 1))
+plot_aspaper_nobart(ce_ourmodel=model_00_paper$CE_PERC,
+                     lims = c(-10,150),
+                      month='[Y(1)-Y(0)]/|Y(0)| %',
+                    gray_line=0)
+
+par(mfrow = c(1, 1))
+plot_aspaper_nobart(ce_ourmodel=abs(model_MM0_paper$CE_PERC),
+                     lims = c(-1,95),
+                      month='wrong estimation !',
+                    gray_line=0)
 ```
 
+```{r factors_plots}
 
+library(plot.matrix)
+library(RColorBrewer)
 
-In the paper *The influence of wildfire smoke on ambient chemical species concentrations in the contiguous US*, they obtain the following results:
+selection_factors <- function(sigma_matrix,treat_level){
+  
+  eigenPhi <- eigen(sigma_matrix)
+  d_value <- eigenPhi$values 
+  choiceK <- d_value / sum(d_value)
 
-![](paper_ce.png){width=50%}
+  print(round(choiceK,3))
+  
+  k <- length(which(choiceK>0.1))
+  val_matrix <- diag(sqrt(d_value))
+  load <- eigenPhi$vec %*% val_matrix
+  loadK <- load[,1:k]
+  rownames(loadK) <- rep(" ",27)
+  
+  par(mfrow=c(1,1), mar=c(5.1, 4.1,4.1,4.1))
+  breaks=c(-0.7,-0.5,-0.3,-0.1,-0.05,0.05,0.1,0.3,0.5,0.7)
+  cols <- brewer.pal(9, "RdBu")
+  plot(-loadK, 
+       main=treat_level, breaks=breaks,
+       xlab=" ", ylab=" ", yaxt = "n", bty = "n",
+       border=NA, digits=2, 
+       text.cell=list(cex=0.45),
+       col=cols,
+       key=list(side=4,  font=1, cex.axis=0.75))
+  axis(2, at = 1:27, labels = names_chemicals[27:1], las = 2, cex.axis = 0.5)
+}
+
+selection_factors_varimax <- function(sigma_matrix,treat_level, th_var){
+  
+  eigenPhi <- eigen(sigma_matrix)
+  d_value <- eigenPhi$values 
+  choiceK <- d_value / sum(d_value)
+
+  round(choiceK,3)
+  
+  k <- length(which(choiceK>th_var))
+  loadK <- varimax(eigenPhi$vectors[,1:k])$loadings
+  prova<- loadK[1:27,]
+  rownames(prova) <- rep(" ",27)
+  def_matrix <- sapply(1:k, function(i) sign(prova[which.max(abs(prova[,i])),i])*prova[,i])
+  
+  par(mfrow=c(1,1), mar=c(5.1, 4.1,4.1,4.1))
+  breaks=c(-0.9,-0.6,-0.45,-0.3,-0.2,-0.09,0.09,0.2,0.3,0.45,0.6,0.9)
+  cols <- brewer.pal(11, "RdBu")
+  plot(def_matrix, 
+       main=treat_level, breaks=breaks,
+       xlab=" ", ylab=" ", yaxt = "n", bty = "n",
+       border=NA, digits=2, 
+       text.cell=list(cex=0.45),
+       col=cols,
+       key=list(side=4,  font=1, cex.axis=0.75))
+  axis(2, at = 1:27, labels = names_chemicals[27:1], las = 2, cex.axis = 0.5)
+}
+
+selection_factors_varimax_op2 <- function(sigma_matrix,treat_level, th_var){
+  
+  eigenPhi <- eigen(sigma_matrix)
+  d_value <- eigenPhi$values 
+  choiceK <- d_value / sum(d_value)
+
+  round(choiceK,3)
+  
+  k <- length(which(choiceK>th_var))
+  loadK <- varimax(eigenPhi$vectors[,1:k])$loadings
+  rownames(loadK) <- names_chemicals
+  
+  par(mfrow=c(1,1), mar=c(5.1, 4.1,4.1,4.1))
+  breaks=c(-0.9,-0.6,-0.45,-0.3,-0.2,-0.09,0.09,0.2,0.3,0.45,0.6,0.9)
+  cols <- brewer.pal(11, "RdBu")
+  plot(loadK, 
+       main=treat_level, breaks=breaks,
+       xlab=" ", ylab=" ", bty = "n",
+       border=NA, digits=2, las=2, , cex.axis=0.5,
+       text.cell=list(cex=0.45),
+       col=cols)
+}
+
+selection_factors(sigma_matrix = model_00_paper$sigma[[1]], 
+                  treat_level="w/o wildfire")
+selection_factors(sigma_matrix = model_00_paper$sigma[[2]], 
+                  treat_level="w/ wildfire")
+
+selection_factors_varimax(sigma_matrix = model_00_paper$sigma[[1]], 
+                  treat_level="w/o wildfire",
+                  th_var=0.1)
+selection_factors_varimax(sigma_matrix = model_00_paper$sigma[[2]], 
+                  treat_level="w/ wildfire",
+                  th_var=0.1)
+selection_factors_varimax(sigma_matrix = model_00_paper$sigma[[1]], 
+                  treat_level="w/o wildfire",
+                  th_var=0.05)
+selection_factors_varimax(sigma_matrix = model_00_paper$sigma[[2]], 
+                  treat_level="w/ wildfire",
+                  th_var=0.05)
+
+selection_factors_varimax_op2(sigma_matrix = model_00_paper$sigma[[1]], 
+                  treat_level="w/o wildfire",
+                  th_var=0.1)
+selection_factors_varimax_op2(sigma_matrix = model_00_paper$sigma[[2]], 
+                  treat_level="w/ wildfire",
+                  th_var=0.1)
+
+```

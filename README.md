@@ -5,4 +5,4 @@ In this repository, we provide the code for the novel mnodel introduced in the p
 We provide:
  - R functions for the Bayesian Causal Regression Factor Model
  - code to reproduce the simulation study
- - code to reproduce the application study: multivariate causal effects of wildfire smoke in chemical air polution
+ - information to reproduce the application study: multivariate causal effects of wildfire smoke in chemical air polution

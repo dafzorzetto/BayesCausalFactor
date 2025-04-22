@@ -1,5 +1,5 @@
 ---
-title: "CausalFA - simulation DEF"
+title: "Simulation study"
 author: "Zorzetto Dafne"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output: html_document
@@ -35,22 +35,16 @@ library(viridis)
 
 Import Gibbs sampler for Causal Factor Regression
 
-```{r echo=FALSE, message=FALSE, warning=FALSE}
-load("~/Documents/GitHub/BayesCausalFactor/R/results/simulations_results.RData")
-load("~/Documents/GitHub/BayesCausalFactor/Data/results_application_00.RData")
-```
-
-
 ```{r message=FALSE, warning=FALSE}
-setwd("/Users/dafnezorzetto/Documents/GitHub/CausalFA/src")
 source("simulation_functions.R")
-source("2_causal_fa_Lt_X.R")
-source("10_causal_fa_Lt_stand_mixfree_reg.R")
-source("bart_bcf.R")
+source("../src/BayesCausalFactor_Gibbs.R")
+source("../src/StandardFactor_Gibbs.R")
+source("../src/BART_BCF.R")
 source("code_parallelized.R")
 source("plots_functions.R")
-```
 
+load("Data/results_application_00.RData")
+```
 
 ### Causal Factor Model
 
@@ -64,9 +58,7 @@ source("plots_functions.R")
 
 ### Settings
 
-We have four settings. three to evaluate the unmeasure varible and one that mimics the data.
-
--   The first three settings. Each of them has $n=500$ units, $p=10$ predictors/outcomes, and $J_t=3$ factors (for both treatment levels $t$).
+We have three settings. Each of them has $n=500$ units, $p=10$ predictors/outcomes, and $J_t=3$ factors (for both treatment levels $t$).
 
 Corresponding to 3 case in the following figure:
 
@@ -85,24 +77,11 @@ Corresponding to 3 case in the following figure:
 Then each of them has in common the following data generation process:
 
 -   treatment variable: $T \sim Be(expit(0.2 + 0.5X_1+0.2X_3-0.5U))$
-
 -   factor loadings (for each $t$): $\Lambda_t$ is $10\times 3$ matrix with $25\%$ of zeros entries and the remain values with values between $[-1,-0.8]$ and $[0.8,1]$
-
 -   error matrix (for each $t$): $\xi_{it} \sim Unif_p[0,1]$
-
 -   categorical variable for each unit $i$ and for different treatment level $t$ and factor $j$: $C_{ijt}$ depend on variable $X_3$ and $X_4$ (no dependence with $U$)
-
 -   factor score: $l_{itj} \mid C_{ijt}=c \sim N(\mu_{t,c}+\gamma_{t,c}U, 1)$
-
 -   potential outcome: \$Y(t) \sim B_tX +\Lambda\_t\eta + \xi\_t \$
-
--   **Setting 4:**
-
-    -   we use the 3426 units of the data application (monitor-day)
-    -   treatment is the observed treatment
-    -   28 observed covariated
-    -   factor loading are the estimated factor loadings with our models (3 factors)
-    -   different custers as for the previous simulated settings but by real covarites
 
 ```{r functions_sim, eval=TRUE, message=FALSE, warning=FALSE}
 # options for X generation
@@ -306,7 +285,7 @@ funct_dataapplication_generating<-function(dataset, mean_cl, seed, factors){
 
 ```{r n_sample, eval=TRUE, message=FALSE, warning=FALSE}
 # number of samples
-n_sample = 25
+n_sample = 50
 dim_Y = 10
 n_units = 500
 ```
@@ -341,13 +320,33 @@ data_4 <- lapply(1:20, function(x) funct_dataapplication_generating(
                    seed=x, factors=model_00_paper$sigma))
 ```
 
+### Visualization simulated causal effects
+
+```{r plot_simulation, eval=TRUE, message=FALSE, warning=FALSE}
+est_CE_1 <- sapply(data_1,function(x) x$mis_data$Y_all[[2]]-x$mis_data$Y_all[[1]])
+est_CE_2 <- sapply(data_2,function(x) x$mis_data$Y_all[[2]]-x$mis_data$Y_all[[1]])
+est_CE_3 <- sapply(data_3,function(x) x$mis_data$Y_all[[2]]-x$mis_data$Y_all[[1]])
+est_CE_4 <- sapply(data_4,function(x) x$mis_data$Y_all[[2]]-x$mis_data$Y_all[[1]])
+
+name_y="simulated causal effect"
+ylim_par=c(-2,2)
+par(mfrow=c(1,1))
+each_CE_plot(est_CE_1, dim_Y=10, ylim_par=ylim_par,
+             name_title="scenario 1", name_y=name_y)
+each_CE_plot(est_CE_2, dim_Y=10, ylim_par=ylim_par,
+             name_title="scenario 2", name_y=name_y)
+each_CE_plot(est_CE_3, dim_Y=10, ylim_par=ylim_par,
+             name_title="scenario 3", name_y=name_y)
+each_CE_plot(est_CE_4, dim_Y=27, ylim_par=ylim_par,
+             name_title="scenario 4", name_y=name_y)
+
+```
+
 # Estimation model
 
 ```{r estimation_models, eval=FALSE, message=FALSE, warning=FALSE}
 # setting 1:
 model_1_mix <- mclapply(data_1, parallel_fa_Lt_mixfree_reg_allX, mc.cores = 5) 
-model_1_lessF <- mclapply(data_1, parallel_mixfree_nfactors, factors=c(1,1), mc.cores = 5) 
-model_1_moreF <- mclapply(data_1, parallel_mixfree_nfactors, factors=c(5,5), mc.cores = 5) 
 model_1_stand <- mclapply(data_1, parallel_funct_causal_fa_Lt_X, mc.cores = 5)
 model_1_bart <- mclapply(data_1, parallel_funct_bart, mc.cores = 5)
 model_1_bcf <- lapply(1:n_sample, function(x) BCF_estimation(Y_t = data_1[[x]]$data$Y_t, 
@@ -356,8 +355,6 @@ model_1_bcf <- lapply(1:n_sample, function(x) BCF_estimation(Y_t = data_1[[x]]$d
 
 # setting 2:
 model_2_mix <- mclapply(data_2, parallel_fa_Lt_mixfree_reg_allX, mc.cores = 5) 
-model_2_lessF <- mclapply(data_2, parallel_mixfree_nfactors, factors=c(1,1), mc.cores = 5) 
-model_2_moreF <- mclapply(data_2, parallel_mixfree_nfactors, factors=c(5,5), mc.cores = 5) 
 model_2_stand <- mclapply(data_2, parallel_funct_causal_fa_Lt_X, mc.cores = 5)
 model_2_bart <- mclapply(data_2, parallel_funct_bart, mc.cores = 5)
 model_2_bcf <- lapply(1:n_sample, function(x) BCF_estimation(Y_t = data_2[[x]]$data$Y_t, 
@@ -366,8 +363,6 @@ model_2_bcf <- lapply(1:n_sample, function(x) BCF_estimation(Y_t = data_2[[x]]$d
 
 # setting 3:
 model_3_mix <- mclapply(data_3, parallel_fa_Lt_mixfree_reg_allX, mc.cores = 5)
-model_3_lessF <- mclapply(data_3, parallel_mixfree_nfactors, factors=c(1,1), mc.cores = 5) 
-model_3_moreF <- mclapply(data_3, parallel_mixfree_nfactors, factors=c(5,5), mc.cores = 5) 
 model_3_stand <- mclapply(data_3, parallel_funct_causal_fa_Lt_X, mc.cores = 5)
 model_3_bart <- mclapply(data_3, parallel_funct_bart, mc.cores = 5)
 model_3_bcf <- lapply(1:n_sample, function(x) BCF_estimation(Y_t = data_3[[x]]$data$Y_t, 
@@ -376,8 +371,6 @@ model_3_bcf <- lapply(1:n_sample, function(x) BCF_estimation(Y_t = data_3[[x]]$d
 
 # setting 4:
 model_4_mix <- mclapply(data_4, parallel_fa_Lt_mixfree_reg_allX, mc.cores = 3)
-model_4_lessF <- mclapply(data_4, parallel_mixfree_nfactors, factors=c(1,1), mc.cores = 3) 
-model_4_moreF <- mclapply(data_4, parallel_mixfree_nfactors, factors=c(5,5), mc.cores = 3) 
 model_4_stand <- mclapply(data_4, parallel_funct_causal_fa_Lt_X, mc.cores = 3)
 model_4_bart <- mclapply(data_4, parallel_funct_bart, mc.cores = 3)
 model_4_bcf <- lapply(1:n_sample, function(x) BCF_estimation(Y_t = data_4[[x]]$data$Y_t, 
@@ -471,48 +464,103 @@ return(list(bias_CE_ite = bias_CE_ite,
 # analyse the bias for Y0,Y1, and CE - CAUSAL RFA
 # setting 1
 bias_1_mix = bias_function_fa(simulated = data_1, estimated = model_1_mix)
-bias_1_lessF = bias_function_fa(simulated = data_1, estimated = model_1_lessF)
-bias_1_moreF = bias_function_fa(simulated = data_1, estimated = model_1_moreF)
 bias_1_stand = bias_function_fa(simulated = data_1, estimated = model_1_stand)
 bias_1_bart = bias_function_bart(simulated = data_1, estimated = model_1_bart)
 bias_1_bcf = bias_function_bcf(simulated = data_1, estimated = model_1_bcf)
 
 # setting 2
 bias_2_mix = bias_function_fa(simulated = data_2, estimated = model_2_mix)
-bias_2_lessF = bias_function_fa(simulated = data_2, estimated = model_2_lessF)
-bias_2_moreF = bias_function_fa(simulated = data_2, estimated = model_2_moreF)
 bias_2_stand = bias_function_fa(simulated = data_2, estimated = model_2_stand)
 bias_2_bart = bias_function_bart(simulated = data_2, estimated = model_2_bart)
 bias_2_bcf = bias_function_bcf(simulated = data_2, estimated = model_2_bcf)
 
 # setting 3
 bias_3_mix = bias_function_fa(simulated = data_3, estimated = model_3_mix)
-bias_3_lessF = bias_function_fa(simulated = data_3, estimated = model_3_lessF)
-bias_3_moreF = bias_function_fa(simulated = data_3, estimated = model_3_moreF)
 bias_3_stand = bias_function_fa(simulated = data_3, estimated = model_3_stand)
 bias_3_bart = bias_function_bart(simulated = data_3, estimated = model_3_bart)
 bias_3_bcf = bias_function_bcf(simulated = data_3, estimated = model_3_bcf)
 
 # setting 4
-n_sample = 20
-dim_Y = 27
-n_units = 3426
 bias_4_mix = bias_function_fa(simulated = data_4, estimated = model_4_mix)
-bias_4_lessF = bias_function_fa(simulated = data_4, estimated = model_4_lessF)
-bias_4_moreF = bias_function_fa(simulated = data_4, estimated = model_4_moreF)
 bias_4_stand = bias_function_fa(simulated = data_4, estimated = model_4_stand)
 bias_4_bart = bias_function_bart(simulated = data_4, estimated = model_4_bart)
 bias_4_bcf = bias_function_bcf(simulated = data_4, estimated = model_4_bcf)
-
-n_sample = 25
-dim_Y = 10
-n_units = 500
 ```
 
-### Plots: results
+
+### Plots results: bias and MSE of causal effects
+
+```{r bias_alt, eval=TRUE}
+#cbPalette <- c("#007399", "#00ace6", "#80dfff","#5EEBCB","#00BC4B","#00944B")
+cbPalette <- c("#0971E8","#8ADAFF","#384F69","#D90224","#EBB600","#E67300")
+
+boxplot_allmodel<-function(data, xlab_name, ylab_name){
+  bias_boxplot=as.data.frame(cbind(Xi=data,
+                                 Q=rep(c("CausalFA","CFA-lessF","CFA-moreF",
+                                         "StandardFA","BART","BCF"),
+                                       each=dim_Y*n_sample),
+                                 cov=rep(paste0("Y ",c(1:dim_Y)),n_sample*6)))
+  bias_boxplot$Q=factor(bias_boxplot$Q)
+  bias_boxplot$Q=ordered(bias_boxplot$Q, 
+                         levels =c("CausalFA","CFA-lessF","CFA-moreF","StandardFA","BART","BCF"))
+  bias_boxplot$cov=factor(bias_boxplot$cov)
+  bias_boxplot$cov=ordered(bias_boxplot$cov, levels=paste0("Y ",c(1:dim_Y)))
+  bias_boxplot$Xi=as.numeric(bias_boxplot$Xi)
+
+  #pdf(file="bias_sim.pdf",width=10, height=5)
+ggplot(bias_boxplot, aes(x=cov, y=Xi, fill=Q, color=Q, alpha=0.2)) + 
+  #scale_fill_manual(values=cbPalette, name="")+
+  geom_boxplot(lwd=0.3,fatten = 1.5, outlier.size = 0.3)+
+  #geom_hline(yintercept = 0, col="#00BC4B", size=0.4) +
+  theme(panel.background = element_rect(fill='white'),
+        plot.background = element_rect(fill ="white"),
+        #panel.grid.minor = element_line(color = "grey"),
+        axis.title = element_text(size=14),
+        legend.position = "top",
+        legend.text=element_text(size=10),
+        plot.title = element_text(hjust = 0.2),
+        title =element_text(size=18),
+        legend.background = element_rect(fill='transparent'),
+        panel.grid.major = element_line(color = "grey",size = 0.1))+
+  ylab(ylab_name) +
+  xlab(xlab_name) +
+  labs(fill = "") +
+  guides(color = FALSE, alpha = FALSE)
+#dev.off()
+}
+
+boxplot_allmodel(data=c(bias_1_mix$bias_CE_mean,bias_1_lessF$bias_CE_mean,
+                        bias_1_moreF$bias_CE_mean,bias_1_stand$bias_CE_mean,
+                        bias_1_bart$bias_CE_mean,bias_1_bcf$bias_CE_mean),
+                 xlab_name="Scenario 1", ylab_name="Bias")
+boxplot_allmodel(data=c(bias_2_mix$bias_CE_mean,bias_2_lessF$bias_CE_mean,
+                        bias_2_moreF$bias_CE_mean,bias_2_stand$bias_CE_mean,
+                        bias_2_bart$bias_CE_mean,bias_2_bcf$bias_CE_mean),
+                 xlab_name="Scenario 2", ylab_name="Bias")
+boxplot_allmodel(data=c(bias_3_mix$bias_CE_mean,bias_3_lessF$bias_CE_mean,
+                        bias_3_moreF$bias_CE_mean,bias_3_stand$bias_CE_mean,
+                        bias_3_bart$bias_CE_mean,bias_3_bcf$bias_CE_mean),
+                 xlab_name="Scenario 3", ylab_name="Bias")
+
+boxplot_allmodel(data=c(bias_1_mix$mse_CE_mean,bias_1_lessF$mse_CE_mean,
+                        bias_1_moreF$mse_CE_mean,bias_1_stand$mse_CE_mean,
+                        bias_1_bart$mse_CE_mean,bias_1_bcf$mse_CE_mean),
+                 xlab_name="Scenario 1", ylab_name="MSE")
+boxplot_allmodel(data=c(bias_2_mix$mse_CE_mean,bias_2_lessF$mse_CE_mean,
+                        bias_2_moreF$mse_CE_mean,bias_2_stand$mse_CE_mean,
+                        bias_2_bart$mse_CE_mean,bias_2_bcf$mse_CE_mean),
+                 xlab_name="Scenario 2", ylab_name="MSE")
+boxplot_allmodel(data=c(bias_3_mix$mse_CE_mean,bias_3_lessF$mse_CE_mean,
+                        bias_3_moreF$mse_CE_mean,bias_3_stand$mse_CE_mean,
+                        bias_3_bart$mse_CE_mean,bias_3_bcf$mse_CE_mean),
+                 xlab_name="Scenario 3", ylab_name="MSE")
+```
+
+$\nu$
 
 ```{r echo=FALSE, eval=FALSE}
 
+### PLOT PAPER
 boxplot_models_general<-function(data, list_model, xlab_name, ylab_name){
   bias_boxplot=as.data.frame(cbind(Xi=data,
                                    Q=rep(list_model,
@@ -634,15 +682,9 @@ boxplot_models_general(data=c(bias_3_mix$mse_CE_mean,bias_3_stand$mse_CE_mean,
                               bias_3_bart$mse_CE_mean,bias_3_bcf$mse_CE_mean),
                        list_model=c("CausalFA","StandardFA","bart","BCF"),
                        xlab_name="Scenario 3", ylab_name="MSE")
-
-## appendix
-boxplot_models_general(data=c(bias_1_lessF$bias_CE_mean,bias_1_mix$bias_CE_mean,
-                        bias_1_moreF$bias_CE_mean),
-                       list_model=c("1 factor","3 factors","5 factors"),
-                       xlab_name="Scenario 1", ylab_name="Bias")
-boxplot_models_general(data=c(bias_1_lessF$mse_CE_mean,bias_1_mix$mse_CE_mean,
-                        bias_1_moreF$mse_CE_mean),
-                       list_model=c("1 factor","3 factors","5 factors"),
-                       xlab_name="Scenario 1", ylab_name="MSE")
+boxplot_models_scen4(data=c(bias_4_mix$mse_CE_mean,bias_4_stand$mse_CE_mean,
+                              bias_4_bart$mse_CE_mean,bias_4_bcf$mse_CE_mean),
+                       list_model=c("CausalFA","StandardFA","bart","BCF"),
+                       xlab_name="Scenario 3", ylab_name="MSE")
 
 ```

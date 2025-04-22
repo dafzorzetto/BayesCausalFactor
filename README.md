@@ -1,6 +1,6 @@
 # BayesCausalFactor
 
-In this repository, we provide the code for the novel model introduced in the paper <a href=https://arxiv.org/abs/2504.03480>_"Multivariate Causal Effects: a Bayesian Causal Regression Factor Model"_ </a> by D. Zorzetto, J. Landy, C. Zigler, G. Parmigiani, R. De Vito, _arXiv soon_. 
+In this repository, we provide the code for the novel model introduced in the paper <a href=https://arxiv.org/abs/2504.03480>_"Multivariate Causal Effects: a Bayesian Causal Regression Factor Model"_ </a> by D. Zorzetto, J. Landy, C. Zigler, G. Parmigiani, R. De Vito. 
 
 <center>
 <img src="model.png" width="700" >

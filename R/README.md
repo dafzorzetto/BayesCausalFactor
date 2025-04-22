@@ -20,7 +20,7 @@
    
     functions for some visualizations
     
-  ### Simulation studys:
+### Code to reproduce the simulation study (in **`simulation_study`** folder):
  - **`simulation_study.Rmd`**:
    
     RMarkdown file to reproduce all the simulation study

@@ -1,5 +1,5 @@
 ---
-title: "Analysis Data - Single Days - DEF"
+title: "Analysis Data: Monitor-Day units"
 author: "Dafne Zorzetto"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output: html_document
@@ -41,7 +41,6 @@ library(corrplot)
 Upload data
 
 ```{r upload_data, eval=FALSE, message=FALSE, warning=FALSE}
-setwd("/Users/dafnezorzetto/Documents/GitHub/CausalFA/data")
 
 # import chemical species dataset
 CSN_concentration <- read_csv("Interpolated_CSN_IMPROVE/CSN_concentration_AQS.PM_PMF_C-sub_2024.03.csv")
@@ -62,11 +61,11 @@ GEOINFO_ZCTA <- GEOINFO_ZCTA[,c(2,7,8)]
 colnames(GEOINFO_ZCTA) <- c("id_ZCTA","Latitude","Longitude")
 
 # coordinates
-coords_6 <- read.csv("~/Documents/GitHub/CausalFA/data/weather/coords_6.csv")
+coords_6 <- read.csv("coords_6.csv")
 
 # census data: 2014
 # lat and long from june dataset
-load("~/Documents/GitHub/CausalFA/data/census_data.RData")
+load("census_data.RData")
 #colnames(my_points)[-1]<-c("count population","housing units","gender","")
 my_points$B00001_001[is.na(my_points$B00001_001)]<-median(my_points$B00001_001, na.rm = TRUE)
 my_points$B20004_001[is.na(my_points$B20004_001)]<-median(my_points$B20004_001, na.rm = TRUE)
@@ -238,13 +237,6 @@ dataset_2014_summer<-merge_data_days(year=2014,
 
 # Matching 1-to-1
 
-For each month:
-
--   checking balance
--   visualization of control and treated groups geographically
-
-**The threshould for wildfire smoke days changes for each month.** June and september is $0$, while for july and august is $5$. See histogram for wildfire smoke days distribution.
-
 ```{r matching, message=TRUE, warning=TRUE}
 
 matching<-function(dataset, threshold){
@@ -288,10 +280,6 @@ matching<-function(dataset, threshold){
 matched_summer14<-matching(dataset=dataset_2014_summer, threshold=0)
 ```
 
-```{r echo=FALSE}
-load("~/Documents/GitHub/BayesCausalFactor/Data/results_application_00.RData")
-```
-
 ```{r eval=TRUE, echo=TRUE}
 elements_matched <- colnames(matched_summer14)[5:40]
 elements_paper <- c( "Mg", "Ca","Sr","Na","Rb","K","Cr","Ni","V","Cu","Fe",
@@ -311,25 +299,6 @@ def_dataset <- cbind(matched_summer14[,c(66,3:4)],
                      matched_summer14[,c(1:2,41:42,44:65,67,43,68)])
 
 chem_cell <-c(4:30)
-
-means_chemical <- cbind(apply(def_dataset[def_dataset$smokePM_pred==0,chem_cell],2,mean),
-      apply(def_dataset[def_dataset$smokePM_pred>0,chem_cell],2,mean))
-
-means_chemical_july <- cbind(apply(def_dataset[def_dataset$smokePM_pred==0 &
-                                              def_dataset$month == 7,chem_cell],2,mean),
-      apply(def_dataset[def_dataset$smokePM_pred>0 & def_dataset$month == 7,chem_cell],2,mean))
-means_chemical_aug <- cbind(apply(def_dataset[def_dataset$smokePM_pred==0 &
-                                             def_dataset$month == 8,chem_cell],2,mean),
-      apply(def_dataset[def_dataset$smokePM_pred>0 & def_dataset$month == 8,chem_cell],2,mean))
-means_chemical_sept <- cbind(apply(def_dataset[def_dataset$smokePM_pred==0 &
-                                              def_dataset$month == 9,chem_cell],2,mean),
-      apply(def_dataset[def_dataset$smokePM_pred>0 & def_dataset$month == 9,chem_cell],2,mean))
-table_months<-round(cbind(means_chemical[,2]-means_chemical[,1],
-                             means_chemical_july[,2]-means_chemical_july[,1],
-                             means_chemical_aug[,2]-means_chemical_aug[,1],
-                             means_chemical_sept[,2]-means_chemical_sept[,1]),2)
-colnames(table_months)<-c("summer","july","aug","sept")
-table_months
 ```
 
 # Analysis correlation
@@ -613,9 +582,6 @@ bcf_00 <- parallel_funct_bcf(dataset = def_dataset,
 
 Comparison of the causal effect $E[Y_k(1)-Y_k(0)]$ for $k$ indicate the chemical component:
 
--   our proposed model: the boxplots indicate the posterior distribution
--   BART: the gray star and rhombus indicate the posterior mean and median
-
 ```{r plot_results_ce_function, echo=FALSE}
 
 plot_aspaper_vertical<-function(ce_ourmodel,bart_results,bcf_results,month){
@@ -687,17 +653,6 @@ plot_aspaper_nobart(ce_ourmodel=model_00_paper$CE_across,
                       month='Y(1)-Y(0)',
                     gray_line=0)
 
-par(mfrow = c(1, 1))
-plot_aspaper_nobart(ce_ourmodel=model_00_paper$CE_PERC,
-                     lims = c(-10,150),
-                      month='[Y(1)-Y(0)]/|Y(0)| %',
-                    gray_line=0)
-
-par(mfrow = c(1, 1))
-plot_aspaper_nobart(ce_ourmodel=abs(model_MM0_paper$CE_PERC),
-                     lims = c(-1,95),
-                      month='wrong estimation !',
-                    gray_line=0)
 ```
 
 ```{r factors_plots}

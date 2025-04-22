@@ -74,12 +74,10 @@ my_points$B20004_001[is.na(my_points$B20004_001)]<-median(my_points$B20004_001, 
 Upload model estimation functions
 
 ```{r upload_model, message=FALSE, warning=FALSE}
-setwd("/Users/dafnezorzetto/Documents/GitHub/CausalFA/data")
-
 # model's Gibbs sampler
-source("../src/10_causal_fa_Lt_stand_mixfree_reg.R")
-source("../src/2_causal_fa_Lt_X.R")
-source("../src/bart_bcf.R")
+source("../src/BayesCausalFactor_Gibbs.R")
+source("../src/StandardFactor_Gibbs.R")
+source("../src/BART_BCF.R")
 ```
 
 General functions to merge datasets for the same time period
@@ -358,7 +356,7 @@ estimation_model<-function(dataset, factors=c(5,5), y_list){
   Y_0 <- data.matrix(dataset[dataset$treat==0,y_list])
   Y_1 <- data.matrix(dataset[dataset$treat==1,y_list])
   
-  st_causalFA <- causal_rfm_stand_mixfree_reg(Y_t=list(Y_0,Y_1), 
+  st_causalFA <- BayesCausalFactor(Y_t=list(Y_0,Y_1), 
                                                j_t=factors,
                                                X_reg = list(rbind(1,t(X_0)),
                                                             rbind(1,t(X_1))), 
@@ -421,7 +419,7 @@ estimation_standard_FactorModel<-function(dataset, factors=c(5,5), y_list){
   Y_0 <- data.matrix(dataset[dataset$treat==0,y_list])
   Y_1 <- data.matrix(dataset[dataset$treat==1,y_list])
   
-  st_FA <- causal_fa_Lt_X(Y_t=list(Y_0,Y_1), 
+  st_FA <- StandardFactor(Y_t=list(Y_0,Y_1), 
                           j_t=factors,
                           X_t = list(rbind(1,t(X_0)),rbind(1,t(X_1))),
                           outputlevel = 2,

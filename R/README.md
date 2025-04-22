@@ -15,4 +15,4 @@
     function to parallelize the code for replicated (useful for simulation study)
 
   ### Simulation studys:
- - **`boh`** file:
+ \

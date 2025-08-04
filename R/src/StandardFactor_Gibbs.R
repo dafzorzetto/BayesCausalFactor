@@ -1,4 +1,4 @@
-sp_msfa_control_Lt_X <- function(nrun = 10000, burn = 5000, thin = 1,
+control_function <- function(nrun = 10000, burn = 5000, thin = 1,
                             nu = 3, nus = 3,
                             a1 = 1.1, b1 = 1,
                             a2 = 1.1, b2 = 1,
@@ -15,7 +15,7 @@ sp_msfa_control_Lt_X <- function(nrun = 10000, burn = 5000, thin = 1,
 }
 
 
-causal_fa_Lt_X <- function(Y_t, X_t, j_t, trace = TRUE, nprint = 1000,
+StandardFactor <- function(Y_t, X_t, j_t, trace = TRUE, nprint = 1000,
                              outputlevel = 1, seed = 1, control = list(...), ...)
 {
   set.seed(seed)
@@ -28,7 +28,7 @@ causal_fa_Lt_X <- function(Y_t, X_t, j_t, trace = TRUE, nprint = 1000,
   d_cov <- dim(X_t[[1]])[1]         # dimension of covariates 
   
   #### setting up priors and initialize ####
-  control <- do.call("sp_msfa_control_Lt_X", control)
+  control <- do.call("control_function", control)
   nrun <- control$nrun
   thin <- control$thin
   burn <- control$burn

@@ -1,7 +1,7 @@
 ---
-title: "Simulation study"
+title: "Simulation study - after 1st revision"
 author: "Zorzetto Dafne"
-date: "April 2025"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
 output: html_document
 ---
 
@@ -36,14 +36,14 @@ library(viridis)
 Import Gibbs sampler for Causal Factor Regression
 
 ```{r message=FALSE, warning=FALSE}
-source("simulation_functions.R")
+#source("simulation_functions.R")
 source("../src/BayesCausalFactor_Gibbs.R")
 source("../src/StandardFactor_Gibbs.R")
 source("../src/BART_BCF.R")
-source("code_parallelized.R")
-source("plots_functions.R")
+source("../src/code_parallelized.R")
+source("../src/plots_functions.R")
 
-load("Data/results_application_00.RData")
+load("../Data/results_application_00.RData")
 ```
 
 ### Causal Factor Model
@@ -81,7 +81,19 @@ Then each of them has in common the following data generation process:
 -   error matrix (for each $t$): $\xi_{it} \sim Unif_p[0,1]$
 -   categorical variable for each unit $i$ and for different treatment level $t$ and factor $j$: $C_{ijt}$ depend on variable $X_3$ and $X_4$ (no dependence with $U$)
 -   factor score: $l_{itj} \mid C_{ijt}=c \sim N(\mu_{t,c}+\gamma_{t,c}U, 1)$
--   potential outcome: $Y(t) \sim B_tX +\Lambda\_t\eta + \xi_t $
+-   potential outcome: $Y(t) \sim B_t X +\Lambda\_t\eta + \xi_t $
+
+
+##### Additional Settings
+
+-   **Setting 4:**
+    -   using data application
+-   **Setting 5:**
+    -   addind effect of $U$ directly on $Y$: **
+-   **Setting 6:**
+    -   addind effect of $U$ directly on $Y$: **
+-   **Setting 7:**
+    -   setting 1 but with factor loadings $\Lambda_t$ with $25\%$ of zeros entries and the remain values with values between $[-0.5,-0.3]$ and $[0.3,0.5]$
 
 ```{r functions_sim, eval=TRUE, message=FALSE, warning=FALSE}
 # options for X generation
@@ -105,9 +117,29 @@ U_depX_function<-function(n_obs, X){
   return(U = rbind(rnorm(n_obs,0.5+X[,1]+0.5*X[,3],2)))
 }
 
+funct_specific_factors<-function(p, j_t, no_zeros=0.6, max_loading=1, perc_nozeros){
+  set.seed(1)
+  
+  L <- noZERO <- studyc <- position <- Lambda_s <- list()
+  
+  for(s in 1:2){
+    L[[s]] <- as.vector(zeros(p, j_t[s]))
+    noZERO[[s]] <- (p*j_t[s])*perc_nozeros
+    studyc[[s]] <- runif(noZERO[[s]], no_zeros,max_loading)
+    sign <- sample(x = length(studyc), size = (length(studyc)/2))
+    studyc[[s]][sign] <- studyc[[s]][sign]*(-1)
+    position[[s]] <- sample(x = p*j_t[s], size=length(studyc[[s]]))
+    L[[s]][position[[s]]] <- studyc[[s]]
+    Lambda_s[[s]] <- matrix(L[[s]], p, j_t[s])
+  }
+  
+  return(Lambda_s)
+}
+
 # generatoin data mechanism
 funct_data_generating<-function(n_tot, p,
-                                lim_nozeros_Lambda, perc_nozeros_Lambda,
+                                lim_nozeros_Lambda=0.8, perc_nozeros_Lambda=0.75,
+                                max_loading=1, function_Y=1,
                                 setting_XU, mean_cl, c_U, seed){
                         
   set.seed(seed)
@@ -160,6 +192,7 @@ funct_data_generating<-function(n_tot, p,
   # factor loadings
   Lambda_t <- funct_specific_factors(p, j_t, 
                                      no_zeros=lim_nozeros_Lambda, 
+                                     max_loading=1,
                                      perc_nozeros=perc_nozeros_Lambda)
   
   for(s in 1:2){
@@ -175,9 +208,22 @@ funct_data_generating<-function(n_tot, p,
                                                   mean_cl[[s]][[j]][cl_alloc[[s]][,j]]+
                                                   c_U[[s]][[j]][cl_alloc[[s]][,j]]*U,1))
     
-    # Y regression 
-    Y_all[[s]] <- t(beta_t[[s]]%*%X) + l_all[[s]]%*%t(Lambda_t[[s]]) + 
+     # Y regression 
+  if (function_Y==1){
+   Y_all[[s]] <- t(beta_t[[s]]%*%X) + l_all[[s]]%*%t(Lambda_t[[s]]) + 
+      mvrnorm(n_tot, rep(0, p), Psi_t[[s]])} 
+  if(function_Y==2){
+    X[2,] <- X[2,]^2/1.5
+    X[3,] <- exp(X[3,])/2
+   Y_all[[s]] <- t(beta_t[[s]]%*%X) + l_all[[s]]%*%t(Lambda_t[[s]]) + 
       mvrnorm(n_tot, rep(0, p), Psi_t[[s]])
+    } 
+  if(function_Y==3) {
+    X_U <- rbind(X,U+0.3)
+    beta_t[[s]] <- cbind(rep(0.5*s,p),beta_t[[s]])
+   Y_all[[s]] <- t(beta_t[[s]]%*%X_U) + l_all[[s]]%*%t(Lambda_t[[s]]) + 
+      mvrnorm(n_tot, rep(0, p), Psi_t[[s]])
+   }
   }
   
    # division "observed" and "missing" outcome
@@ -273,8 +319,8 @@ funct_dataapplication_generating<-function(dataset, mean_cl, seed, factors){
   
   return(list(data=list(n_t = c(length(X_t[[1]]),length(X_t[[2]])), 
                         Y_t = Y_t, Treat = Treat, X_t = X_t),
-              #factors=list(Lambda_t = Lambda_t, 
-              #             Psi_t = Psi_t, l_t = l_t),
+              factors=list(Lambda_t = Lambda_t, 
+                           Psi_t = Psi_t, l_t = l_t),
               #parameters=list(j_t = j_t, cl_alloc = cl_alloc, 
               #                mean_cl = mean_cl),
               mis_data=list(Y_mis = Y_mis,  l_mis = l_mis, Y_all=Y_all)))
@@ -285,7 +331,7 @@ funct_dataapplication_generating<-function(dataset, mean_cl, seed, factors){
 
 ```{r n_sample, eval=TRUE, message=FALSE, warning=FALSE}
 # number of samples
-n_sample = 50
+n_sample = 100
 dim_Y = 10
 n_units = 500
 ```
@@ -299,79 +345,103 @@ gamma_U <- list(list(c(-0.5,0,0.5),c(-0.5,0.5),c(-0.2,0.2)),
 # setting 1:
 data_1 <- lapply(1:n_sample, function(x) funct_data_generating(
                    n_tot=n_units, p=dim_Y, seed=x, 
-                   lim_nozeros_Lambda=0.8, perc_nozeros_Lambda=0.75,
                    mean_cl=mu_eta, c_U=gamma_U, setting_XU=1))
 
 # setting 2:
 data_2 <- lapply(1:n_sample, function(x) funct_data_generating(
-                   n_tot=n_units, p=dim_Y, seed=x, 
-                   lim_nozeros_Lambda=0.8, perc_nozeros_Lambda=0.75,
+                   n_tot=n_units, p=dim_Y, seed=x,
                    mean_cl=mu_eta, c_U=gamma_U, setting_XU=2))
 
 # setting 3:
 data_3 <- lapply(1:n_sample, function(x) funct_data_generating(
                    n_tot=n_units, p=dim_Y, seed=x, 
-                   lim_nozeros_Lambda=0.8, perc_nozeros_Lambda=0.75,
                    mean_cl=mu_eta, c_U=gamma_U, setting_XU=3))
 
 # setting 4:
-data_4 <- lapply(1:20, function(x) funct_dataapplication_generating(
+data_4 <- lapply(1:n_sample, function(x) funct_dataapplication_generating(
                    dataset = def_dataset, mean_cl=mu_eta,
                    seed=x, factors=model_00_paper$sigma))
+
+# setting 5: 
+data_5 <- lapply(1:n_sample, function(x) funct_data_generating(
+                   n_tot=n_units, p=dim_Y, seed=x, 
+                   function_Y=2,
+                   mean_cl=mu_eta, c_U=gamma_U, setting_XU=1))
+
+# setting 6: 
+data_6 <- lapply(1:n_sample, function(x) funct_data_generating(
+                   n_tot=n_units, p=dim_Y, seed=x, 
+                   function_Y=3,
+                   mean_cl=mu_eta, c_U=gamma_U, setting_XU=1))
+
+# setting 7: 
+data_7 <- lapply(1:n_sample, function(x) funct_data_generating(
+                   n_tot=n_units, p=dim_Y, seed=x, 
+                   lim_nozeros_Lambda=0.2, max_loading=0.4,
+                   perc_nozeros_Lambda=0.75,
+                   mean_cl=mu_eta, c_U=gamma_U, setting_XU=1))
 ```
 
 ### Visualization simulated causal effects
 
 ```{r plot_simulation, eval=TRUE, message=FALSE, warning=FALSE}
-est_CE_1 <- sapply(data_1,function(x) x$mis_data$Y_all[[2]]-x$mis_data$Y_all[[1]])
-est_CE_2 <- sapply(data_2,function(x) x$mis_data$Y_all[[2]]-x$mis_data$Y_all[[1]])
-est_CE_3 <- sapply(data_3,function(x) x$mis_data$Y_all[[2]]-x$mis_data$Y_all[[1]])
-est_CE_4 <- sapply(data_4,function(x) x$mis_data$Y_all[[2]]-x$mis_data$Y_all[[1]])
+est_CE_1 <- lapply(data_1,function(x) x$mis_data$Y_all[[2]]-x$mis_data$Y_all[[1]])
+est_CE_2 <- lapply(data_2,function(x) x$mis_data$Y_all[[2]]-x$mis_data$Y_all[[1]])
+est_CE_3 <- lapply(data_3,function(x) x$mis_data$Y_all[[2]]-x$mis_data$Y_all[[1]])
+est_CE_4 <- lapply(data_4,function(x) x$mis_data$Y_all[[2]]-x$mis_data$Y_all[[1]])
+est_CE_5 <- lapply(data_5,function(x) x$mis_data$Y_all[[2]]-x$mis_data$Y_all[[1]])
+est_CE_6 <- lapply(data_6,function(x) x$mis_data$Y_all[[2]]-x$mis_data$Y_all[[1]])
+est_CE_7 <- lapply(data_7,function(x) x$mis_data$Y_all[[2]]-x$mis_data$Y_all[[1]])
 
 name_y="simulated causal effect"
 ylim_par=c(-2,2)
 par(mfrow=c(1,1))
-each_CE_plot(est_CE_1, dim_Y=10, ylim_par=ylim_par,
+each_CE_plot(est_CE_1, dim_Y=dim_Y, ylim_par=ylim_par,
              name_title="scenario 1", name_y=name_y)
-each_CE_plot(est_CE_2, dim_Y=10, ylim_par=ylim_par,
+each_CE_plot(est_CE_2, dim_Y=dim_Y, ylim_par=ylim_par,
              name_title="scenario 2", name_y=name_y)
-each_CE_plot(est_CE_3, dim_Y=10, ylim_par=ylim_par,
+each_CE_plot(est_CE_3, dim_Y=dim_Y, ylim_par=ylim_par,
              name_title="scenario 3", name_y=name_y)
 each_CE_plot(est_CE_4, dim_Y=27, ylim_par=ylim_par,
              name_title="scenario 4", name_y=name_y)
-
+each_CE_plot(est_CE_5, dim_Y=dim_Y, ylim_par=ylim_par,
+             name_title="scenario 5", name_y=name_y)
+each_CE_plot(est_CE_6, dim_Y=dim_Y, ylim_par=ylim_par,
+             name_title="scenario 6", name_y=name_y)
+each_CE_plot(est_CE_7, dim_Y=dim_Y, ylim_par=ylim_par,
+             name_title="scenario 7", name_y=name_y)
 ```
 
 # Estimation model
 
 ```{r estimation_models, eval=FALSE, message=FALSE, warning=FALSE}
 # setting 1:
-model_1_mix <- mclapply(data_1, parallel_fa_Lt_mixfree_reg_allX, mc.cores = 5) 
-model_1_stand <- mclapply(data_1, parallel_funct_causal_fa_Lt_X, mc.cores = 5)
+model_1_mix <- mclapply(data_1, BayesCausalFactor_parall, mc.cores = 5) 
+model_1_stand <- mclapply(data_1, StandardFactor_parall, mc.cores = 5)
 model_1_bart <- mclapply(data_1, parallel_funct_bart, mc.cores = 5)
 model_1_bcf <- lapply(1:n_sample, function(x) BCF_estimation(Y_t = data_1[[x]]$data$Y_t, 
                                                               X_t = data_1[[x]]$data$X_t, 
                                                               Treat = data_1[[x]]$data$Treat))
 
 # setting 2:
-model_2_mix <- mclapply(data_2, parallel_fa_Lt_mixfree_reg_allX, mc.cores = 5) 
-model_2_stand <- mclapply(data_2, parallel_funct_causal_fa_Lt_X, mc.cores = 5)
+model_2_mix <- mclapply(data_2, BayesCausalFactor_parall, mc.cores = 5) 
+model_2_stand <- mclapply(data_2, StandardFactor_parall, mc.cores = 5)
 model_2_bart <- mclapply(data_2, parallel_funct_bart, mc.cores = 5)
 model_2_bcf <- lapply(1:n_sample, function(x) BCF_estimation(Y_t = data_2[[x]]$data$Y_t, 
                                                               X_t = data_2[[x]]$data$X_t, 
                                                               Treat = data_2[[x]]$data$Treat))
 
 # setting 3:
-model_3_mix <- mclapply(data_3, parallel_fa_Lt_mixfree_reg_allX, mc.cores = 5)
-model_3_stand <- mclapply(data_3, parallel_funct_causal_fa_Lt_X, mc.cores = 5)
+model_3_mix <- mclapply(data_3, BayesCausalFactor_parall, mc.cores = 5)
+model_3_stand <- mclapply(data_3, StandardFactor_parall, mc.cores = 5)
 model_3_bart <- mclapply(data_3, parallel_funct_bart, mc.cores = 5)
 model_3_bcf <- lapply(1:n_sample, function(x) BCF_estimation(Y_t = data_3[[x]]$data$Y_t, 
                                                               X_t = data_3[[x]]$data$X_t, 
                                                               Treat = data_3[[x]]$data$Treat))
 
 # setting 4:
-model_4_mix <- mclapply(data_4, parallel_fa_Lt_mixfree_reg_allX, mc.cores = 3)
-model_4_stand <- mclapply(data_4, parallel_funct_causal_fa_Lt_X, mc.cores = 3)
+model_4_mix <- mclapply(data_4, BayesCausalFactor_parall, mc.cores = 3)
+model_4_stand <- mclapply(data_4, StandardFactor_parall, mc.cores = 3)
 model_4_bart <- mclapply(data_4, parallel_funct_bart, mc.cores = 3)
 model_4_bcf <- lapply(1:n_sample, function(x) BCF_estimation(Y_t = data_4[[x]]$data$Y_t, 
                                                               X_t = data_4[[x]]$data$X_t, 
@@ -486,7 +556,6 @@ bias_4_stand = bias_function_fa(simulated = data_4, estimated = model_4_stand)
 bias_4_bart = bias_function_bart(simulated = data_4, estimated = model_4_bart)
 bias_4_bcf = bias_function_bcf(simulated = data_4, estimated = model_4_bcf)
 ```
-
 
 ### Plots results: bias and MSE of causal effects
 

@@ -9,7 +9,7 @@ library(mvtnorm)
 
 
 
-causal_rf_control_stand_mix <- function(nrun = 30000, burn = 20000, thin = 1,
+control_parameters <- function(nrun = 30000, burn = 20000, thin = 1,
                                         nu = 3, nus = 3,
                                         a1 = 1.1, b1 = 1,
                                         a2 = 1.1, b2 = 1,
@@ -29,7 +29,7 @@ causal_rf_control_stand_mix <- function(nrun = 30000, burn = 20000, thin = 1,
 }
 
 
-causal_rfm_stand_mixfree_reg <- function(Y_t, j_t, X_reg = NULL, X_weight = NULL, R_cluster=10,
+BayesCausalFactor <- function(Y_t, j_t, X_reg = NULL, X_weight = NULL, R_cluster=10,
                                      trace = TRUE, nprint = 1000,
                                      outputlevel = 1, seed = 1, control = list(...), ...)
 {
@@ -54,7 +54,7 @@ causal_rfm_stand_mixfree_reg <- function(Y_t, j_t, X_reg = NULL, X_weight = NULL
   n_t <- c()                        # sample size
   
   #### setting up priors and initialize ####
-  control <- do.call("causal_rf_control_stand_mix", control)
+  control <- do.call("control_parameters", control)
   nrun <- control$nrun
   thin <- control$thin
   burn <- control$burn

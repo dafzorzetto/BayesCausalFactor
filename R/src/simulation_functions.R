@@ -15,7 +15,7 @@ funct_common_factors<-function(p,k, no_zeros=0.6, perc_nozeros){
 }
 
 # treatment-specific factors simulation
-funct_specific_factors<-function(p, j_t, no_zeros=0.6, perc_nozeros){
+funct_specific_factors<-function(p, j_t, no_zeros=0.6, max_loading=1, perc_nozeros){
   set.seed(1)
   
   L <- noZERO <- studyc <- position <- Lambda_s <- list()
@@ -23,7 +23,7 @@ funct_specific_factors<-function(p, j_t, no_zeros=0.6, perc_nozeros){
   for(s in 1:2){
     L[[s]] <- as.vector(zeros(p, j_t[s]))
     noZERO[[s]] <- (p*j_t[s])*perc_nozeros
-    studyc[[s]] <- runif(noZERO[[s]], no_zeros,1)
+    studyc[[s]] <- runif(noZERO[[s]], no_zeros,max_loading)
     sign <- sample(x = length(studyc), size = (length(studyc)/2))
     studyc[[s]][sign] <- studyc[[s]][sign]*(-1)
     position[[s]] <- sample(x = p*j_t[s], size=length(studyc[[s]]))

@@ -105,18 +105,20 @@ results_boxplot <- function(settings,n_settings, name_title, name_y, ylim_par){
   abline(h=0, col="green")
 }
 
-each_CE_plot<-function(bias_setting, dim_Y, name_title,name_y,ylim_par){
+each_CE_plot<-function(data, dim_Y, name_title,name_y,ylim_par){
   
-  n_units=dim(bias_setting)[1]/dim_Y
-  indicator_Y<- model.matrix(~ factor(rep(1:dim_Y, each=n_units)) - 1) 
-  bias<-sapply(1:(dim(bias_setting)[2]), function(r) (t(bias_setting[,r])%*%indicator_Y)/n_units)
+  data_boxplot<-cbind(apply(data[[1]],2,mean),1:dim_Y)
+  for(i in 2:n_sample){
+    temp <- cbind(apply(data[[i]],2,mean),1:dim_Y)
+    data_boxplot<- rbind(data_boxplot, temp)
+  }
     
-  boxplot_dataset <- cbind(bias=c(bias), 
-                           sim=rep(1:dim_Y, n_sample))
+  boxplot_dataset <- cbind(bias=c(data_boxplot[,1]), 
+                           sim=c(data_boxplot[,2]))
   
   boxplot(bias ~ sim, data=boxplot_dataset, 
           main=name_title, ylab=name_y, xlab="outcomes",
-          col=rainbow(17)[16:(17-dim_Y)],
+          col=rainbow(27)[27:(27-dim_Y+1)],
           ylim=ylim_par)
   abline(h=0, col="#FAD401")
 }

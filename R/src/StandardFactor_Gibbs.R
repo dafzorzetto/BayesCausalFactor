@@ -62,7 +62,8 @@ StandardFactor <- function(Y_t, X_t, j_t, trace = TRUE, nprint = 1000,
   
   #### output ####
   Lambdaout <- psiout <- l_tout  <- SigmaLambda <- list()
-  Y_obs_lt <- Y_mis_lt <- Y_obs_var <- Y_mis_var <- list()
+  Y_obs_lt <- Y_mis_lt <- list()
+    #Y_obs_var <- Y_mis_var <- list()
   Beta_tout <- Lambda_l_out <- list()
   l_mis <- l_tout_mis <- list()
   Y_obs_all <- Y_mis_all <- list()
@@ -101,14 +102,14 @@ StandardFactor <- function(Y_t, X_t, j_t, trace = TRUE, nprint = 1000,
     #### save output ####
     Y_obs_lt[[s]] <- array(0, dim=c(n_t[s], p, sp))
     Y_mis_lt[[s]] <- array(0, dim=c(n_t[s], p, sp))
-    Y_obs_var[[s]] <- array(0, dim=c(n_t[s], p, sp))
-    Y_mis_var[[s]] <- array(0, dim=c(n_t[s], p, sp))
+    #Y_obs_var[[s]] <- array(0, dim=c(n_t[s], p, sp))
+    #Y_mis_var[[s]] <- array(0, dim=c(n_t[s], p, sp))
     if(outputlevel == 1) {
       Lambdaout[[s]] <- array(0, dim=c(p, j_t[s], sp))
       psiout[[s]] <- array(0, dim=c(p, 1, sp))
       #l_tout[[s]] <- zeros(n_t[s], j_t[s])
     }
-    if(outputlevel == 2) {
+    if(outputlevel == 3) {
       #Lambdaout[[s]] <- zeros(p, j_t[s])
       #psiout[[s]] <- zeros(p, 1)
       l_tout[[s]] <- array(0, dim=c(n_t[s], j_t[s], sp))
@@ -117,7 +118,7 @@ StandardFactor <- function(Y_t, X_t, j_t, trace = TRUE, nprint = 1000,
       Y_obs_all[[s]] <- array(0, dim=c(n_t[s], p, sp))
       Y_mis_all[[s]] <- array(0, dim=c(n_t[s], p, sp))
     }
-    if(outputlevel == 3) {
+    if(outputlevel == 2) {
       SigmaLambda[[s]] <- zeros(p, p)
       Lambdaout[[s]] <- zeros(p, j_t[s])
       #psiout[[s]] <- zeros(p, 1)
@@ -131,6 +132,8 @@ StandardFactor <- function(Y_t, X_t, j_t, trace = TRUE, nprint = 1000,
       #l_tout[[s]] <- zeros(n_t[s], j_t[s])
     }
   }
+  CE_mean <- zeros(p, sp)
+  CE_ite <- zeros(n_t[1]+n_t[2], p)
   
   ##################################
   # --- start posterior sampling ---
@@ -231,10 +234,10 @@ StandardFactor <- function(Y_t, X_t, j_t, trace = TRUE, nprint = 1000,
         Y_mis_lt[[s]] <- X_beta_mis + l_mis[[s]] %*% t(Lambda_t[[3-s]]) +
           matrix(rnorm(n_t[s]*p),n_t[s],p)*matrix(1/sqrt(psi_t[[3-s]]),n_t[s],p, byrow = TRUE)
         
-        Y_obs_var[[s]] <- X_beta_obs + mvrnorm(n_t[s], rep(0, p), 
-                                  tcrossprod(Lambda_t[[s]])+Psi_t[[s]])
-        Y_mis_var[[s]] <- X_beta_mis + mvrnorm(n_t[s], rep(0, p), 
-                                  tcrossprod(Lambda_t[[3-s]])+Psi_t[[3-s]])
+        #Y_obs_var[[s]] <- X_beta_obs + mvrnorm(n_t[s], rep(0, p), 
+        #                          tcrossprod(Lambda_t[[s]])+Psi_t[[s]])
+        #Y_mis_var[[s]] <- X_beta_mis + mvrnorm(n_t[s], rep(0, p), 
+        #                          tcrossprod(Lambda_t[[3-s]])+Psi_t[[3-s]])
       }
       if(outputlevel==1)
       {
@@ -248,40 +251,42 @@ StandardFactor <- function(Y_t, X_t, j_t, trace = TRUE, nprint = 1000,
         for(s in 1:2){
           #Lambdaout[[s]] <- Lambdaout[[s]] + Lambda_t[[s]]  / teff
           #psiout[[s]] <- psiout[[s]] + (1 / psi_t[[s]]) / teff
-          l_tout[[s]][, , neff] <- l_t[[s]]
+          #l_tout[[s]] <- l_tout[[s]] + l_t[[s]] / teff
+          #l_tout_mis[[s]] <- l_tout_mis[[s]] + l_mis[[s]] / teff
+          SigmaLambda[[s]] <- SigmaLambda[[s]] + tcrossprod(Lambda_t[[s]]) / teff
+          Beta_tout[[s]] <- Beta_tout[[s]] + Beta_t[[s]] / teff
+          Lambda_l_out[[s]] <- Lambda_l_out[[s]] + (Lambda_t[[s]] %*% t(l_t[[s]])) / teff
+        }
+        CE_all <- rbind(Y_mis_lt[[1]]-Y_obs_lt[[1]],Y_obs_lt[[2]]-Y_mis_lt[[2]])
+        CE_mean[ , neff] <- apply(CE_all,2,mean) 
+        CE_ite <- CE_ite + CE_all/teff
+      }
+      if(outputlevel==3){
+        for(s in 1:2){
+          #Lambdaout[[s]] <- Lambdaout[[s]] + Lambda_t[[s]]  / teff
+          #psiout[[s]] <- psiout[[s]] + (1 / psi_t[[s]]) / teff
+          #l_tout[[s]][, , neff] <- l_t[[s]]
           #SigmaLambda[[s]] <- SigmaLambda[[s]] + tcrossprod(Lambda_t[[s]]) / teff
           Beta_tout[[s]][ , , neff] <- Beta_t[[s]] 
           Y_obs_all[[s]][ , , neff] <- Y_obs_lt[[s]]
           Y_mis_all[[s]][ , , neff] <- Y_mis_lt[[s]]
         }
       }
-      if(outputlevel==3){
-        for(s in 1:2){
-          Lambdaout[[s]] <- Lambdaout[[s]] + Lambda_t[[s]]  / teff
-          #psiout[[s]] <- psiout[[s]] + (1 / psi_t[[s]]) / teff
-          l_tout[[s]] <- l_tout[[s]] + l_t[[s]] / teff
-          l_tout_mis[[s]] <- l_tout_mis[[s]] + l_mis[[s]] / teff
-          SigmaLambda[[s]] <- SigmaLambda[[s]] + tcrossprod(Lambda_t[[s]]) / teff
-          Beta_tout[[s]] <- Beta_tout[[s]] + Beta_t[[s]] / teff
-          Lambda_l_out[[s]] <- Lambda_l_out[[s]] + (Lambda_t[[s]] %*% t(l_t[[s]])) / teff
-        }
-      }
     }
     if (trace & r %% nprint == 0) cat("r=",r,"/",nrun,"\n")
   }
   ##### Save and exit
-  if(outputlevel < 3)  {
-    SigmaLambda <- NULL
-  }
   if(outputlevel == 1)  {
     l_tout <- NULL
-  }
-  if(outputlevel == 2)  {
-    Lambdaout <- NULL
-    psiout <- NULL
+    CE_mean <- CE_ite <- NULL
   }
   if(outputlevel == 3)  {
-    Lambdaout <- NULL
+    Lambdaout <- l_tout <- l_mis <- NULL
+    psiout <- NULL
+    CE_mean <- CE_ite <- NULL
+  }
+  if(outputlevel == 2)  {
+    Lambdaout <- l_tout <- l_tout_mis <- l_mis <- NULL
     psiout <- NULL
     Y_obs_all <- Y_mis_all <- NULL
   }
@@ -290,12 +295,14 @@ StandardFactor <- function(Y_t, X_t, j_t, trace = TRUE, nprint = 1000,
     psiout <- NULL
     l_tout <- NULL
     SigmaLambda <- NULL
+    CE_mean <- CE_ite <- NULL
   }
   out <- list(Lambda = Lambdaout, psi = psiout, l_t = l_tout, l_mis = l_tout_mis,
               SigmaLambda = SigmaLambda,
+              CE_mean = CE_mean, CE_ite = CE_ite,
               Y_obs_lt = Y_obs_lt, Y_mis_lt = Y_mis_lt,
               Y_obs_all = Y_obs_all, Y_mis_all = Y_mis_all,
-              Y_obs_var = Y_obs_var, Y_mis_var = Y_mis_var,
+              #Y_obs_var = Y_obs_var, Y_mis_var = Y_mis_var,
               Beta_tout = Beta_tout, Lambda_l_out = Lambda_l_out)
   return(structure(out,  class="causal_fa"))
 }

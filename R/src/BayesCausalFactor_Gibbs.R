@@ -31,7 +31,7 @@ control_parameters <- function(nrun = 30000, burn = 20000, thin = 1,
 
 BayesCausalFactor <- function(Y_t, j_t, X_reg = NULL, X_weight = NULL, R_cluster=10,
                                      trace = TRUE, nprint = 1000,
-                                     outputlevel = 1, seed = 1, control = list(...), ...)
+                                     outputlevel = 2, seed = 1, control = list(...), ...)
 {
   set.seed(seed)
   
@@ -98,9 +98,9 @@ BayesCausalFactor <- function(Y_t, j_t, X_reg = NULL, X_weight = NULL, R_cluster
   #### output ####
   Lambdaout <- psiout <- l_tout  <- SigmaLambda <- list()
   Y_obs_lt <- Y_mis_lt <- Y_obs_lt_temp <- Y_mis_lt_temp <- list()
-  Y_obs_all <- Y_mis_all <- list()
+  Y_obs_all <- Y_mis_all <- CE_mean <- CE_ite <- list()
   S_allocation_post <- mu_litj_post <- Beta_tout <- sd_Y_out <- list()
-  S_allocation_mis <- l_mis <- l_tout_mis <- list()
+  S_allocation_mis <- l_mis <- l_tout_mis <- lambda_lt_mean <- list()
   
   # check chains:
   lt_chains <- lambda_lt_chains <- lamda_lt_post <- list()
@@ -191,12 +191,14 @@ BayesCausalFactor <- function(Y_t, j_t, X_reg = NULL, X_weight = NULL, R_cluster
       mu_litj_post[[s]] <- array(0, dim=c(R_cluster, j_t[s], nrun))
       #n_clusters_post[[s]] <- array(0, dim=c(R_cluster, j_t[s], nrun))
       #check some chains
-      lt_chains[[s]] <- array(0, dim=c(5, j_t[s], nrun))
-      lambda_lt_chains[[s]] <- array(0, dim=c(5, p, nrun))
+      #lt_chains[[s]] <- array(0, dim=c(5, j_t[s], nrun))
+      lambda_lt_chains[[s]] <- array(0, dim=c(n_t[s], p, nrun))
       lamda_lt_post[[s]] <- zeros(n_t[s], p)
       Beta_tout[[s]] <- zeros(p, d_X_r)
       sd_Y_out[[s]] <- zeros(p, 1)
   }
+  CE_mean <- zeros(p, sp)
+  CE_ite <- zeros(n_t[1]+n_t[2], sp)
   
   ##################################
   # --- start posterior sampling ---
@@ -372,15 +374,6 @@ BayesCausalFactor <- function(Y_t, j_t, X_reg = NULL, X_weight = NULL, R_cluster
     }
     
     #### ---- STORAGE ----
-    if(outputlevel==3){
-      for(s in 1:2){
-        #n_clusters_post[[s]][ , , r_it] <- n_clusters[[s]]
-        mu_litj_post[[s]][ , , r_it] <- mu_litj[[s]]
-        lt_chains[[s]][ , , r_it] <- l_t[[s]][1:5,]
-        lambda_lt_chains[[s]][ , , r_it] <- l_t[[s]][1:5,] %*% t(Lambda_t[[s]])
-      }
-    }
-    
     if(r_it > burn){
       neff <- (r_it - burn) / thin
       teff <- (nrun - burn) / thin
@@ -395,7 +388,6 @@ BayesCausalFactor <- function(Y_t, j_t, X_reg = NULL, X_weight = NULL, R_cluster
         
         Y_obs_lt[[s]] <- Y_obs_lt[[s]] + Y_obs_lt_temp[[s]]/teff
         Y_mis_lt[[s]] <- Y_mis_lt[[s]] + Y_mis_lt_temp[[s]]/teff
-        
       }
       if(outputlevel==1)
       {
@@ -403,15 +395,23 @@ BayesCausalFactor <- function(Y_t, j_t, X_reg = NULL, X_weight = NULL, R_cluster
           #Lambdaout[[s]][, , neff] <- Lambda_t[[s]]
           #siout[[s]][, , neff] <- 1 / psi_t[[s]]
           #l_tout[[s]] <- l_tout[[s]] + l_t[[s]] / teff
+          Y_obs_all[[s]][ , , neff] <- Y_obs_lt_temp[[s]]
+          Y_mis_all[[s]][ , , neff] <- Y_mis_lt_temp[[s]]
         }
       }
       if(outputlevel==2){
         for(s in 1:2){
           Beta_tout[[s]] <- Beta_tout[[s]] + Beta_t[[s]] / teff
-          Y_obs_all[[s]][ , , neff] <- Y_obs_lt_temp[[s]]
-          Y_mis_all[[s]][ , , neff] <- Y_mis_lt_temp[[s]]
-          SigmaLambda[[s]] <- SigmaLambda[[s]] + tcrossprod(Lambda_t[[s]]) / teff
+          #Y_obs_all[[s]][ , , neff] <- Y_obs_lt_temp[[s]]
+          #Y_mis_all[[s]][ , , neff] <- Y_mis_lt_temp[[s]]
+          #mu_litj_post[[s]][ , , r_it] <- mu_litj[[s]]
+          #lt_chains[[s]][ , , r_it] <- l_t[[s]][1:j_t[s],]
+          lambda_lt_chains[[s]][ , , r_it] <- l_t[[s]] %*% t(Lambda_t[[s]])
+          lambda_lt_mean[[s]] <- apply(lambda_lt_chains[[s]],c(1,2),mean)
         }
+        CE_all <- rbind(Y_mis_lt_temp[[1]]-Y_obs_lt_temp[[1]],Y_obs_lt_temp[[2]]-Y_mis_lt_temp[[2]])
+        CE_mean[ , neff] <- apply(CE_all,2,mean) 
+        CE_ite[ , neff] <- apply(CE_all,1,mean) 
       }
       if(outputlevel==3){
         for(s in 1:2){
@@ -432,30 +432,37 @@ BayesCausalFactor <- function(Y_t, j_t, X_reg = NULL, X_weight = NULL, R_cluster
   if(outputlevel == 1)  {
     l_tout <- NULL
     SigmaLambda <- NULL
+    CE_mean <- CE_ite <- NULL
   }
   if(outputlevel == 2)  {
-    Lambdaout <- lt_chains <- NULL
-    psiout <- lambda_lt_chains <- sd_Y_out <- NULL
+    Lambdaout <-  NULL
+    psiout <- sd_Y_out <- NULL
+    Y_obs_all <- Y_mis_all <- NULL
     mu_litj_post <- lamda_lt_post <- NULL
     Lambda <- l_tout <- l_tout_mis <- NULL
   }
   if(outputlevel == 3)  {
-    Lambdaout <- NULL
-    psiout <- NULL
+    Lambdaout <- lambda_lt_chains <- NULL
+    psiout <- lt_chains <- NULL
     Y_obs_all <- Y_mis_all <- NULL
+    CE_mean <- CE_ite <- NULL
+    lambda_lt_mean <- NULL
   }
   if(outputlevel == 4)  {
     Lambdaout <- NULL
     psiout <- NULL
     l_tout <- NULL
     SigmaLambda <- NULL
+    CE_mean <- CE_ite <- NULL
   }
   out <- list(Lambda = Lambdaout, psi = psiout, l_t = l_tout, l_mis = l_tout_mis,
               SigmaLambda = SigmaLambda,
               Y_obs_lt = Y_obs_lt, Y_mis_lt = Y_mis_lt,
               Y_obs_all = Y_obs_all, Y_mis_all = Y_mis_all,
-              mu_litj_post = mu_litj_post,
-              lt_chains = lt_chains, lambda_lt_chains = lambda_lt_chains,
+              mu_litj_post = mu_litj_post, 
+              CE_mean = CE_mean, CE_ite = CE_ite,
+              #lt_chains = lt_chains, 
+              lambda_lt_mean = lambda_lt_mean,
               lamda_lt_post = lamda_lt_post,
               Beta_tout = Beta_tout, sd_Y_out=sd_Y_out)
   return(structure(out,  class="causal_fa_mix"))

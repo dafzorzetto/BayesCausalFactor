@@ -57,11 +57,11 @@ bart_estimation<-function(Y_t, X_t, n_t){
     tau_Y <- colMeans(tau)
     tau_CE <- rowMeans(tau)
     
-    tau <- apply(tau,1,mean)
+    #tau <- apply(tau,1,mean)
+    #quantiles_CE = quantile(tau_CE, prob=c(0.025,0.05,0.5,0.95,0.975))
      
      return(list(tau_Y=tau_Y,
-                 mean_CE = mean(tau_CE),
-                 quantiles_CE = quantile(tau_CE, prob=c(0.025,0.05,0.5,0.95,0.975))))
+                 mean_CE = tau_CE))
 
   }
   # estimation

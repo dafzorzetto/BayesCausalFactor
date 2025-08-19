@@ -317,12 +317,12 @@ funct_dataapplication_generating<-function(dataset, mean_cl, seed, factors){
     l_mis[[s]] <- l_all[[s]][Treat==(2-s), ]
  }
   
-  return(list(data=list(n_t = c(length(X_t[[1]]),length(X_t[[2]])), 
+  return(list(data=list(n_t = c(length(Treat)-sum(Treat),sum(Treat)), 
                         Y_t = Y_t, Treat = Treat, X_t = X_t),
               factors=list(Lambda_t = Lambda_t, 
                            Psi_t = Psi_t, l_t = l_t),
-              #parameters=list(j_t = j_t, cl_alloc = cl_alloc, 
-              #                mean_cl = mean_cl),
+              parameters=list(#mean_cl = mean_cl , cl_alloc = cl_alloc, 
+                              j_t = j_t),
               mis_data=list(Y_mis = Y_mis,  l_mis = l_mis, Y_all=Y_all)))
   
 }
@@ -385,31 +385,39 @@ data_7 <- lapply(1:n_sample, function(x) funct_data_generating(
 ### Visualization simulated causal effects
 
 ```{r plot_simulation, eval=TRUE, message=FALSE, warning=FALSE}
-est_CE_1 <- lapply(data_1,function(x) x$mis_data$Y_all[[2]]-x$mis_data$Y_all[[1]])
-est_CE_2 <- lapply(data_2,function(x) x$mis_data$Y_all[[2]]-x$mis_data$Y_all[[1]])
-est_CE_3 <- lapply(data_3,function(x) x$mis_data$Y_all[[2]]-x$mis_data$Y_all[[1]])
-est_CE_4 <- lapply(data_4,function(x) x$mis_data$Y_all[[2]]-x$mis_data$Y_all[[1]])
-est_CE_5 <- lapply(data_5,function(x) x$mis_data$Y_all[[2]]-x$mis_data$Y_all[[1]])
-est_CE_6 <- lapply(data_6,function(x) x$mis_data$Y_all[[2]]-x$mis_data$Y_all[[1]])
-est_CE_7 <- lapply(data_7,function(x) x$mis_data$Y_all[[2]]-x$mis_data$Y_all[[1]])
+est_CE_1 <- sapply(data_1,function(x) apply(x$mis_data$Y_all[[2]]-x$mis_data$Y_all[[1]],2,mean))
+est_CE_2 <- sapply(data_2,function(x) apply(x$mis_data$Y_all[[2]]-x$mis_data$Y_all[[1]],2,mean))
+est_CE_3 <- sapply(data_3,function(x) apply(x$mis_data$Y_all[[2]]-x$mis_data$Y_all[[1]],2,mean))
+est_CE_4 <- sapply(data_4,function(x) apply(x$mis_data$Y_all[[2]]-x$mis_data$Y_all[[1]],2,mean))
+est_CE_5 <- sapply(data_5,function(x) apply(x$mis_data$Y_all[[2]]-x$mis_data$Y_all[[1]],2,mean))
+est_CE_6 <- sapply(data_6,function(x) apply(x$mis_data$Y_all[[2]]-x$mis_data$Y_all[[1]],2,mean))
+est_CE_7 <- sapply(data_7,function(x) apply(x$mis_data$Y_all[[2]]-x$mis_data$Y_all[[1]],2,mean))
 
 name_y="simulated causal effect"
 ylim_par=c(-2,2)
 par(mfrow=c(1,1))
-each_CE_plot(est_CE_1, dim_Y=dim_Y, ylim_par=ylim_par,
+each_CE_plot(est_CE_1, ylim_par=ylim_par,
              name_title="scenario 1", name_y=name_y)
-each_CE_plot(est_CE_2, dim_Y=dim_Y, ylim_par=ylim_par,
+each_CE_plot(est_CE_2, ylim_par=ylim_par,
              name_title="scenario 2", name_y=name_y)
-each_CE_plot(est_CE_3, dim_Y=dim_Y, ylim_par=ylim_par,
+each_CE_plot(est_CE_3, ylim_par=ylim_par,
              name_title="scenario 3", name_y=name_y)
-each_CE_plot(est_CE_4, dim_Y=27, ylim_par=ylim_par,
+each_CE_plot(est_CE_4, ylim_par=ylim_par,
              name_title="scenario 4", name_y=name_y)
-each_CE_plot(est_CE_5, dim_Y=dim_Y, ylim_par=ylim_par,
+each_CE_plot(est_CE_5, ylim_par=ylim_par,
              name_title="scenario 5", name_y=name_y)
-each_CE_plot(est_CE_6, dim_Y=dim_Y, ylim_par=ylim_par,
+each_CE_plot(est_CE_6, ylim_par=ylim_par,
              name_title="scenario 6", name_y=name_y)
-each_CE_plot(est_CE_7, dim_Y=dim_Y, ylim_par=ylim_par,
+each_CE_plot(est_CE_7, ylim_par=ylim_par,
              name_title="scenario 7", name_y=name_y)
+
+true_CE_1 <- apply(est_CE_1,1,mean)
+true_CE_2 <- apply(est_CE_2,1,mean)
+true_CE_3 <- apply(est_CE_3,1,mean)
+true_CE_4 <- apply(est_CE_4,1,mean)
+true_CE_5 <- apply(est_CE_5,1,mean)
+true_CE_6 <- apply(est_CE_6,1,mean)
+true_CE_7 <- apply(est_CE_7,1,mean)
 ```
 
 # Estimation model
@@ -447,187 +455,159 @@ model_4_bcf <- lapply(1:n_sample, function(x) BCF_estimation(Y_t = data_4[[x]]$d
                                                               X_t = data_4[[x]]$data$X_t, 
                                                               Treat = data_4[[x]]$data$Treat))
 
+# setting 5:
+model_5_mix <- mclapply(data_5, BayesCausalFactor_parall, mc.cores = 5) 
+model_5_stand <- mclapply(data_5, StandardFactor_parall, mc.cores = 5)
+model_5_bart <- mclapply(data_5, parallel_funct_bart, mc.cores = 5)
+model_5_bcf <- lapply(1:n_sample, function(x) BCF_estimation(Y_t = data_5[[x]]$data$Y_t, 
+                                                              X_t = data_5[[x]]$data$X_t, 
+                                                              Treat = data_5[[x]]$data$Treat))
+
+# setting 6:
+model_6_mix <- mclapply(data_6, BayesCausalFactor_parall, mc.cores = 5) 
+model_6_stand <- mclapply(data_6, StandardFactor_parall, mc.cores = 5)
+model_6_bart <- mclapply(data_6, parallel_funct_bart, mc.cores = 5)
+model_6_bcf <- lapply(1:n_sample, function(x) BCF_estimation(Y_t = data_6[[x]]$data$Y_t, 
+                                                              X_t = data_6[[x]]$data$X_t, 
+                                                              Treat = data_6[[x]]$data$Treat))
+
+# setting 7:
+model_7_mix <- mclapply(data_7, BayesCausalFactor_parall, mc.cores = 5) 
+model_7_stand <- mclapply(data_7, StandardFactor_parall, mc.cores = 5)
+model_7_bart <- mclapply(data_7, parallel_funct_bart, mc.cores = 5)
+model_7_bcf <- lapply(1:n_sample, function(x) BCF_estimation(Y_t = data_7[[x]]$data$Y_t, 
+                                                              X_t = data_7[[x]]$data$X_t, 
+                                                              Treat = data_7[[x]]$data$Treat))
+
 ```
 
 ### Comparison bias
 
 ```{r bias, eval=TRUE}
 
-bias_function_fa<- function(simulated, estimated){
-  
-  bias_Y0_lt <- sapply(1:n_sample, function(i)
-  c(rbind(simulated[[i]]$data$Y_t[[1]]-estimated[[i]]$Y_obs_lt[[1]],
-    simulated[[i]]$mis_data$Y_mis[[1]]-estimated[[i]]$Y_mis_lt[[2]])))
-  bias_Y1_lt <- sapply(1:n_sample, function(i)
-  c(rbind(simulated[[i]]$data$Y_t[[2]]-estimated[[i]]$Y_obs_lt[[2]],
-    simulated[[i]]$mis_data$Y_mis[[2]]-estimated[[i]]$Y_mis_lt[[1]])))
-  bias_CE_lt <- bias_Y1_lt-bias_Y0_lt
-  
-  bias_CE_mean <- sapply(1:dim_Y, function(i)
-    apply(bias_CE_lt[((i-1)*n_units+1):(i*n_units),],2,mean))
-  mse_CE_mean <- sapply(1:dim_Y, function(i)
-    apply((bias_CE_lt[((i-1)*n_units+1):(i*n_units),])^2,2,mean))
-  
-return(list(bias_Y0_lt = bias_Y0_lt,
-            bias_Y1_lt = bias_Y1_lt,
-            bias_CE_lt = bias_CE_lt,
-            bias_CE_mean = bias_CE_mean,
-            mse_CE_mean = mse_CE_mean
-            ))
+simulated_ITE <- function(data){
+  ITE <- data$mis_data$Y_all[[2]]-data$mis_data$Y_all[[1]]
+  t<- data$data$Treat
+  return(rbind(ITE[t==0,],ITE[t==1,]) )
 }
 
-bias_function_bart<- function(simulated, estimated){
+ITE_data1 <- lapply(data_1, function(d) simulated_ITE(d))
+ITE_data2 <- lapply(data_2, function(d) simulated_ITE(d))
+ITE_data3 <- lapply(data_3, function(d) simulated_ITE(d))
+ITE_data4 <- lapply(data_4, function(d) simulated_ITE(d))
+ITE_data5 <- lapply(data_5, function(d) simulated_ITE(d))
+ITE_data6 <- lapply(data_6, function(d) simulated_ITE(d))
+ITE_data7 <- lapply(data_7, function(d) simulated_ITE(d))
+
+bias_function<- function(ite_simulated, ite_estimated){
   
-  Y_0_est <- Y_1_est <- tau_est <- list()
-  for(p in 1:n_sample){
-    Y_0_est[[p]]=sapply(1:(length(estimated[[1]])), function(i)
-      unlist(estimated[[p]][[i]]$Y_imp$Y_0))
-    Y_1_est[[p]]=sapply(1:(length(estimated[[1]])), function(i)
-      unlist(estimated[[p]][[i]]$Y_imp$Y_1))
-    tau_est[[p]]=sapply(1:(length(estimated[[1]])), function(i)
-      unlist(estimated[[p]][[i]]$tau))
-  }
+  n_units <- dim(ite_simulated)[1]
+  dim_Y <- dim(ite_simulated)[2]
   
-  bias_Y0 <- sapply(1:n_sample, function(i)
-  c(rbind(simulated[[i]]$data$Y_t[[1]],simulated[[i]]$mis_data$Y_mis[[1]]))-
-    c(Y_0_est[[i]]))
-  bias_Y1 <- sapply(1:n_sample, function(i)
-  c(rbind(simulated[[i]]$data$Y_t[[2]],simulated[[i]]$mis_data$Y_mis[[2]]))-
-    c(Y_1_est[[i]]))
-  bias_CE_diff <- bias_Y1-bias_Y0
-  bias_CE_ite <- sapply(1:n_sample, function(i)
-    c(rbind(simulated[[i]]$data$Y_t[[2]],simulated[[i]]$mis_data$Y_mis[[2]]))-
-      c(rbind(simulated[[i]]$data$Y_t[[1]],simulated[[i]]$mis_data$Y_mis[[1]]))-
-      c(tau_est[[i]]))
+  bias_CE_mean <- apply(ite_estimated-ite_simulated,2,mean)
+  mse_CE_mean <- apply((ite_estimated-ite_simulated)^2,2,mean)
   
-  bias_CE_mean <- sapply(1:dim_Y, function(i)
-    apply(bias_CE_diff[((i-1)*n_units+1):(i*n_units),],2,mean))
-  mse_CE_mean <- sapply(1:dim_Y, function(i)
-    apply((bias_CE_diff[((i-1)*n_units+1):(i*n_units),])^2,2,mean))
-  
-return(list(bias_Y0 = bias_Y0,
-            bias_Y1 = bias_Y1,
-            bias_CE_diff = bias_CE_diff,
-            bias_CE_ite = bias_CE_ite,
-            bias_CE_mean = bias_CE_mean,
+return(list(bias_CE_mean = bias_CE_mean,
             mse_CE_mean = mse_CE_mean))
 }
 
-bias_function_bcf<- function(simulated, estimated){
-  
-  bias_CE_ite <- sapply(1:n_sample, function(i)
-    c(simulated[[i]]$mis_data$Y_all[[2]]-simulated[[i]]$mis_data$Y_all[[1]])-
-      c(estimated[[i]][[1]]))
-  
-  bias_CE_mean <- sapply(1:n_sample, function(i)
-    apply(simulated[[i]]$mis_data$Y_all[[2]]-simulated[[i]]$mis_data$Y_all[[1]]-
-            estimated[[i]][[1]],2,mean))
-  mse_CE_mean <- sapply(1:n_sample, function(i)
-    apply((simulated[[i]]$mis_data$Y_all[[2]]-simulated[[i]]$mis_data$Y_all[[1]]-
-             estimated[[i]][[1]])^2,2,mean))
- 
-return(list(bias_CE_ite = bias_CE_ite,
-            bias_CE_mean = bias_CE_mean,
-            mse_CE_mean = mse_CE_mean))
+#prepare BART data
+delist_bart_tauY <- function(results){
+  return(sapply(results, function(d) unlist(d$tau_Y)))
+}
+delist_bcf_tauY <- function(results){
+  seq_positions<- seq(1,length(results),2)
+  return(sapply(seq_positions, function(d) unlist(results[[d]])))
 }
 
-# analyse the bias for Y0,Y1, and CE - CAUSAL RFA
 # setting 1
-bias_1_mix = bias_function_fa(simulated = data_1, estimated = model_1_mix)
-bias_1_stand = bias_function_fa(simulated = data_1, estimated = model_1_stand)
-bias_1_bart = bias_function_bart(simulated = data_1, estimated = model_1_bart)
-bias_1_bcf = bias_function_bcf(simulated = data_1, estimated = model_1_bcf)
+bias_1_mix <- lapply(1:n_sample, function(s) 
+  bias_function(ite_simulated = ITE_data1[[s]], ite_estimated = model_1_mix[[s]]$CE_ite))
+bias_1_stand <- lapply(1:n_sample, function(s) 
+  bias_function(ite_simulated = ITE_data1[[s]], ite_estimated = model_1_stand[[s]]$CE_ite))
+bias_1_bart <- lapply(1:n_sample, function(s) 
+  bias_function(ite_simulated = ITE_data1[[s]], 
+                ite_estimated = delist_bart_tauY(model_1_bart[[s]])))
+bias_1_bcf <- lapply(1:n_sample, function(s) 
+  bias_function(ite_simulated = ITE_data1[[s]], 
+                ite_estimated = delist_bcf_tauY(model_1_bcf[[s]][[1]])))
 
 # setting 2
-bias_2_mix = bias_function_fa(simulated = data_2, estimated = model_2_mix)
-bias_2_stand = bias_function_fa(simulated = data_2, estimated = model_2_stand)
-bias_2_bart = bias_function_bart(simulated = data_2, estimated = model_2_bart)
-bias_2_bcf = bias_function_bcf(simulated = data_2, estimated = model_2_bcf)
+bias_2_mix <- lapply(1:n_sample, function(s) 
+  bias_function(ite_simulated = ITE_data2[[s]], ite_estimated = model_2_mix[[s]]$CE_ite))
+bias_2_stand <- lapply(1:n_sample, function(s) 
+  bias_function(ite_simulated = ITE_data2[[s]], ite_estimated = model_2_stand[[s]]$CE_ite))
+bias_2_bart <- lapply(1:n_sample, function(s) 
+  bias_function(ite_simulated = ITE_data2[[s]], 
+                ite_estimated = delist_bart_tauY(model_2_bart[[s]])))
+bias_2_bcf <- lapply(1:n_sample, function(s) 
+  bias_function(ite_simulated = ITE_data2[[s]], 
+                ite_estimated = delist_bcf_tauY(model_2_bcf[[s]][[1]])))
 
 # setting 3
-bias_3_mix = bias_function_fa(simulated = data_3, estimated = model_3_mix)
-bias_3_stand = bias_function_fa(simulated = data_3, estimated = model_3_stand)
-bias_3_bart = bias_function_bart(simulated = data_3, estimated = model_3_bart)
-bias_3_bcf = bias_function_bcf(simulated = data_3, estimated = model_3_bcf)
-
+bias_3_mix <- lapply(1:n_sample, function(s) 
+  bias_function(ite_simulated = ITE_data3[[s]], ite_estimated = model_3_mix[[s]]$CE_ite))
+bias_3_stand <- lapply(1:n_sample, function(s) 
+  bias_function(ite_simulated = ITE_data3[[s]], ite_estimated = model_3_stand[[s]]$CE_ite))
+bias_3_bart <- lapply(1:n_sample, function(s) 
+  bias_function(ite_simulated = ITE_data3[[s]], 
+                ite_estimated = delist_bart_tauY(model_3_bart[[s]])))
+bias_3_bcf <- lapply(1:n_sample, function(s) 
+  bias_function(ite_simulated = ITE_data3[[s]], 
+                ite_estimated = delist_bcf_tauY(model_3_bcf[[s]][[1]])))
 # setting 4
-bias_4_mix = bias_function_fa(simulated = data_4, estimated = model_4_mix)
-bias_4_stand = bias_function_fa(simulated = data_4, estimated = model_4_stand)
-bias_4_bart = bias_function_bart(simulated = data_4, estimated = model_4_bart)
-bias_4_bcf = bias_function_bcf(simulated = data_4, estimated = model_4_bcf)
+bias_4_mix <- lapply(1:n_sample, function(s) 
+  bias_function(ite_simulated = ITE_data4[[s]], ite_estimated = model_4_mix[[s]]$CE_ite))
+bias_4_stand <- lapply(1:n_sample, function(s) 
+  bias_function(ite_simulated = ITE_data4[[s]], ite_estimated = model_4_stand[[s]]$CE_ite))
+bias_4_bart <- lapply(1:n_sample, function(s) 
+  bias_function(ite_simulated = ITE_data4[[s]], 
+                ite_estimated = delist_bart_tauY(model_4_bart[[s]])))
+bias_4_bcf <- lapply(1:n_sample, function(s) 
+  bias_function(ite_simulated = ITE_data4[[s]], 
+                ite_estimated = delist_bcf_tauY(model_4_bcf[[s]][[1]])))
+
+# setting 5
+bias_5_mix <- lapply(1:n_sample, function(s) 
+  bias_function(ite_simulated = ITE_data5[[s]], ite_estimated = model_5_mix[[s]]$CE_ite))
+bias_5_stand <- lapply(1:n_sample, function(s) 
+  bias_function(ite_simulated = ITE_data5[[s]], ite_estimated = model_5_stand[[s]]$CE_ite))
+bias_5_bart <- lapply(1:n_sample, function(s) 
+  bias_function(ite_simulated = ITE_data5[[s]], 
+                ite_estimated = delist_bart_tauY(model_5_bart[[s]])))
+bias_5_bcf <- lapply(1:n_sample, function(s) 
+  bias_function(ite_simulated = ITE_data5[[s]], 
+                ite_estimated = delist_bcf_tauY(model_5_bcf[[s]][[1]])))
+
+# setting 6
+bias_6_mix <- lapply(1:n_sample, function(s) 
+  bias_function(ite_simulated = ITE_data6[[s]], ite_estimated = model_6_mix[[s]]$CE_ite))
+bias_6_stand <- lapply(1:n_sample, function(s) 
+  bias_function(ite_simulated = ITE_data6[[s]], ite_estimated = model_6_stand[[s]]$CE_ite))
+bias_6_bart <- lapply(1:n_sample, function(s) 
+  bias_function(ite_simulated = ITE_data6[[s]], 
+                ite_estimated = delist_bart_tauY(model_6_bart[[s]])))
+bias_6_bcf <- lapply(1:n_sample, function(s) 
+  bias_function(ite_simulated = ITE_data6[[s]], 
+                ite_estimated = delist_bcf_tauY(model_6_bcf[[s]][[1]])))
+
+# setting 7
+bias_7_mix <- lapply(1:n_sample, function(s) 
+  bias_function(ite_simulated = ITE_data7[[s]], ite_estimated = model_7_mix[[s]]$CE_ite))
+bias_7_stand <- lapply(1:n_sample, function(s) 
+  bias_function(ite_simulated = ITE_data7[[s]], ite_estimated = model_7_stand[[s]]$CE_ite))
+bias_7_bart <- lapply(1:n_sample, function(s) 
+  bias_function(ite_simulated = ITE_data7[[s]], 
+                ite_estimated = delist_bart_tauY(model_7_bart[[s]])))
+bias_7_bcf <- lapply(1:n_sample, function(s) 
+  bias_function(ite_simulated = ITE_data7[[s]], 
+                ite_estimated = delist_bcf_tauY(model_7_bcf[[s]][[1]])))
 ```
 
 ### Plots results: bias and MSE of causal effects
 
-```{r bias_alt, eval=TRUE}
-#cbPalette <- c("#007399", "#00ace6", "#80dfff","#5EEBCB","#00BC4B","#00944B")
-cbPalette <- c("#0971E8","#8ADAFF","#384F69","#D90224","#EBB600","#E67300")
-
-boxplot_allmodel<-function(data, xlab_name, ylab_name){
-  bias_boxplot=as.data.frame(cbind(Xi=data,
-                                 Q=rep(c("CausalFA","CFA-lessF","CFA-moreF",
-                                         "StandardFA","BART","BCF"),
-                                       each=dim_Y*n_sample),
-                                 cov=rep(paste0("Y ",c(1:dim_Y)),n_sample*6)))
-  bias_boxplot$Q=factor(bias_boxplot$Q)
-  bias_boxplot$Q=ordered(bias_boxplot$Q, 
-                         levels =c("CausalFA","CFA-lessF","CFA-moreF","StandardFA","BART","BCF"))
-  bias_boxplot$cov=factor(bias_boxplot$cov)
-  bias_boxplot$cov=ordered(bias_boxplot$cov, levels=paste0("Y ",c(1:dim_Y)))
-  bias_boxplot$Xi=as.numeric(bias_boxplot$Xi)
-
-  #pdf(file="bias_sim.pdf",width=10, height=5)
-ggplot(bias_boxplot, aes(x=cov, y=Xi, fill=Q, color=Q, alpha=0.2)) + 
-  #scale_fill_manual(values=cbPalette, name="")+
-  geom_boxplot(lwd=0.3,fatten = 1.5, outlier.size = 0.3)+
-  #geom_hline(yintercept = 0, col="#00BC4B", size=0.4) +
-  theme(panel.background = element_rect(fill='white'),
-        plot.background = element_rect(fill ="white"),
-        #panel.grid.minor = element_line(color = "grey"),
-        axis.title = element_text(size=14),
-        legend.position = "top",
-        legend.text=element_text(size=10),
-        plot.title = element_text(hjust = 0.2),
-        title =element_text(size=18),
-        legend.background = element_rect(fill='transparent'),
-        panel.grid.major = element_line(color = "grey",size = 0.1))+
-  ylab(ylab_name) +
-  xlab(xlab_name) +
-  labs(fill = "") +
-  guides(color = FALSE, alpha = FALSE)
-#dev.off()
-}
-
-boxplot_allmodel(data=c(bias_1_mix$bias_CE_mean,bias_1_lessF$bias_CE_mean,
-                        bias_1_moreF$bias_CE_mean,bias_1_stand$bias_CE_mean,
-                        bias_1_bart$bias_CE_mean,bias_1_bcf$bias_CE_mean),
-                 xlab_name="Scenario 1", ylab_name="Bias")
-boxplot_allmodel(data=c(bias_2_mix$bias_CE_mean,bias_2_lessF$bias_CE_mean,
-                        bias_2_moreF$bias_CE_mean,bias_2_stand$bias_CE_mean,
-                        bias_2_bart$bias_CE_mean,bias_2_bcf$bias_CE_mean),
-                 xlab_name="Scenario 2", ylab_name="Bias")
-boxplot_allmodel(data=c(bias_3_mix$bias_CE_mean,bias_3_lessF$bias_CE_mean,
-                        bias_3_moreF$bias_CE_mean,bias_3_stand$bias_CE_mean,
-                        bias_3_bart$bias_CE_mean,bias_3_bcf$bias_CE_mean),
-                 xlab_name="Scenario 3", ylab_name="Bias")
-
-boxplot_allmodel(data=c(bias_1_mix$mse_CE_mean,bias_1_lessF$mse_CE_mean,
-                        bias_1_moreF$mse_CE_mean,bias_1_stand$mse_CE_mean,
-                        bias_1_bart$mse_CE_mean,bias_1_bcf$mse_CE_mean),
-                 xlab_name="Scenario 1", ylab_name="MSE")
-boxplot_allmodel(data=c(bias_2_mix$mse_CE_mean,bias_2_lessF$mse_CE_mean,
-                        bias_2_moreF$mse_CE_mean,bias_2_stand$mse_CE_mean,
-                        bias_2_bart$mse_CE_mean,bias_2_bcf$mse_CE_mean),
-                 xlab_name="Scenario 2", ylab_name="MSE")
-boxplot_allmodel(data=c(bias_3_mix$mse_CE_mean,bias_3_lessF$mse_CE_mean,
-                        bias_3_moreF$mse_CE_mean,bias_3_stand$mse_CE_mean,
-                        bias_3_bart$mse_CE_mean,bias_3_bcf$mse_CE_mean),
-                 xlab_name="Scenario 3", ylab_name="MSE")
-```
-
-$\nu$
-
 ```{r echo=FALSE, eval=FALSE}
+cbPalette <- c("#0971E8","#8ADAFF","#384F69","#D90224","#EBB600","#E67300")
 
 ### PLOT PAPER
 boxplot_models_general<-function(data, list_model, xlab_name, ylab_name){
@@ -722,38 +702,247 @@ boxplot_models_scen4<-function(data, list_model, xlab_name, ylab_name){
   #dev.off()
 }
 
-boxplot_models_general(data=c(bias_1_mix$bias_CE_mean,bias_1_stand$bias_CE_mean,
-                              bias_1_bart$bias_CE_mean, bias_1_bcf$bias_CE_mean),
+
+boxplot_models_general(data=c(t(sapply(bias_1_mix, function(i) unlist(i$bias_CE_mean))),
+                              t(sapply(bias_1_stand, function(i) unlist(i$bias_CE_mean))),
+                              t(sapply(bias_1_bart, function(i) unlist(i$bias_CE_mean))),
+                              t(sapply(bias_1_bcf, function(i) unlist(i$bias_CE_mean)))),
                        list_model=c("CausalFA","StandardFA","bart","BCF"),
                        xlab_name="Scenario 1", ylab_name="Bias")
-boxplot_models_general(data=c(bias_2_mix$bias_CE_mean,bias_2_stand$bias_CE_mean,
-                              bias_2_bart$bias_CE_mean,bias_2_bcf$bias_CE_mean),
+boxplot_models_general(data=c(t(sapply(bias_2_mix, function(i) unlist(i$bias_CE_mean))),
+                              t(sapply(bias_2_stand, function(i) unlist(i$bias_CE_mean))),
+                              t(sapply(bias_2_bart, function(i) unlist(i$bias_CE_mean))),
+                              t(sapply(bias_2_bcf, function(i) unlist(i$bias_CE_mean)))),
                        list_model=c("CausalFA","StandardFA","bart","BCF"),
                        xlab_name="Scenario 2", ylab_name="Bias")
-boxplot_models_general(data=c(bias_3_mix$bias_CE_mean,bias_3_stand$bias_CE_mean,
-                              bias_3_bart$bias_CE_mean,bias_3_bcf$bias_CE_mean),
+boxplot_models_general(data=c(t(sapply(bias_3_mix, function(i) unlist(i$bias_CE_mean))),
+                              t(sapply(bias_3_stand, function(i) unlist(i$bias_CE_mean))),
+                              t(sapply(bias_3_bart, function(i) unlist(i$bias_CE_mean))),
+                              t(sapply(bias_3_bcf, function(i) unlist(i$bias_CE_mean)))),
                        list_model=c("CausalFA","StandardFA","bart","BCF"),
                        xlab_name="Scenario 3", ylab_name="Bias")
-boxplot_models_scen4(data=c(bias_4_mix$bias_CE_mean,bias_4_stand$bias_CE_mean,
-                              bias_4_bart$bias_CE_mean,bias_4_bcf$bias_CE_mean),
+boxplot_models_general(data=c(t(sapply(bias_4_mix, function(i) unlist(i$bias_CE_mean))),
+                              t(sapply(bias_4_stand, function(i) unlist(i$bias_CE_mean))),
+                              t(sapply(bias_4_bart, function(i) unlist(i$bias_CE_mean))),
+                              t(sapply(bias_4_bcf, function(i) unlist(i$bias_CE_mean)))),
                        list_model=c("CausalFA","StandardFA","bart","BCF"),
                        xlab_name="Scenario 4", ylab_name="Bias")
+boxplot_models_general(data=c(t(sapply(bias_5_mix, function(i) unlist(i$bias_CE_mean))),
+                              t(sapply(bias_5_stand, function(i) unlist(i$bias_CE_mean))),
+                              t(sapply(bias_5_bart, function(i) unlist(i$bias_CE_mean))),
+                              t(sapply(bias_5_bcf, function(i) unlist(i$bias_CE_mean)))),
+                       list_model=c("CausalFA","StandardFA","bart","BCF"),
+                       xlab_name="Scenario 5", ylab_name="Bias")
+boxplot_models_general(data=c(t(sapply(bias_6_mix, function(i) unlist(i$bias_CE_mean))),
+                              t(sapply(bias_6_stand, function(i) unlist(i$bias_CE_mean))),
+                              t(sapply(bias_6_bart, function(i) unlist(i$bias_CE_mean))),
+                              t(sapply(bias_6_bcf, function(i) unlist(i$bias_CE_mean)))),
+                       list_model=c("CausalFA","StandardFA","bart","BCF"),
+                       xlab_name="Scenario 6", ylab_name="Bias")
+boxplot_models_general(data=c(t(sapply(bias_7_mix, function(i) unlist(i$bias_CE_mean))),
+                              t(sapply(bias_7_stand, function(i) unlist(i$bias_CE_mean))),
+                              t(sapply(bias_7_bart, function(i) unlist(i$bias_CE_mean))),
+                              t(sapply(bias_7_bcf, function(i) unlist(i$bias_CE_mean)))),
+                       list_model=c("CausalFA","StandardFA","bart","BCF"),
+                       xlab_name="Scenario 7", ylab_name="Bias")
 
-boxplot_models_general(data=c(bias_1_mix$mse_CE_mean,bias_1_stand$mse_CE_mean,
-                              bias_1_bart$mse_CE_mean,bias_1_bcf$mse_CE_mean),
+boxplot_models_general(data=c(t(sapply(bias_1_mix, function(i) unlist(i$mse_CE_mean))),
+                              t(sapply(bias_1_stand, function(i) unlist(i$mse_CE_mean))),
+                              t(sapply(bias_1_bart, function(i) unlist(i$mse_CE_mean))),
+                              t(sapply(bias_1_bcf, function(i) unlist(i$mse_CE_mean)))),
                        list_model=c("CausalFA","StandardFA","bart","BCF"),
                        xlab_name="Scenario 1", ylab_name="MSE")
-boxplot_models_general(data=c(bias_2_mix$mse_CE_mean,bias_2_stand$mse_CE_mean,
-                              bias_2_bart$mse_CE_mean,bias_2_bcf$mse_CE_mean),
+boxplot_models_general(data=c(t(sapply(bias_2_mix, function(i) unlist(i$mse_CE_mean))),
+                              t(sapply(bias_2_stand, function(i) unlist(i$mse_CE_mean))),
+                              t(sapply(bias_2_bart, function(i) unlist(i$mse_CE_mean))),
+                              t(sapply(bias_2_bcf, function(i) unlist(i$mse_CE_mean)))),
                        list_model=c("CausalFA","StandardFA","bart","BCF"),
                        xlab_name="Scenario 2", ylab_name="MSE")
-boxplot_models_general(data=c(bias_3_mix$mse_CE_mean,bias_3_stand$mse_CE_mean,
-                              bias_3_bart$mse_CE_mean,bias_3_bcf$mse_CE_mean),
+boxplot_models_general(data=c(t(sapply(bias_3_mix, function(i) unlist(i$mse_CE_mean))),
+                              t(sapply(bias_3_stand, function(i) unlist(i$mse_CE_mean))),
+                              t(sapply(bias_3_bart, function(i) unlist(i$mse_CE_mean))),
+                              t(sapply(bias_3_bcf, function(i) unlist(i$mse_CE_mean)))),
                        list_model=c("CausalFA","StandardFA","bart","BCF"),
                        xlab_name="Scenario 3", ylab_name="MSE")
-boxplot_models_scen4(data=c(bias_4_mix$mse_CE_mean,bias_4_stand$mse_CE_mean,
-                              bias_4_bart$mse_CE_mean,bias_4_bcf$mse_CE_mean),
+boxplot_models_general(data=c(t(sapply(bias_4_mix, function(i) unlist(i$mse_CE_mean))),
+                              t(sapply(bias_4_stand, function(i) unlist(i$mse_CE_mean))),
+                              t(sapply(bias_4_bart, function(i) unlist(i$mse_CE_mean))),
+                              t(sapply(bias_4_bcf, function(i) unlist(i$mse_CE_mean)))),
                        list_model=c("CausalFA","StandardFA","bart","BCF"),
-                       xlab_name="Scenario 3", ylab_name="MSE")
+                       xlab_name="Scenario 4", ylab_name="MSE")
+boxplot_models_general(data=c(t(sapply(bias_5_mix, function(i) unlist(i$mse_CE_mean))),
+                              t(sapply(bias_5_stand, function(i) unlist(i$mse_CE_mean))),
+                              t(sapply(bias_5_bart, function(i) unlist(i$mse_CE_mean))),
+                              t(sapply(bias_5_bcf, function(i) unlist(i$mse_CE_mean)))),
+                       list_model=c("CausalFA","StandardFA","bart","BCF"),
+                       xlab_name="Scenario 5", ylab_name="MSE")
+boxplot_models_general(data=c(t(sapply(bias_6_mix, function(i) unlist(i$mse_CE_mean))),
+                              t(sapply(bias_6_stand, function(i) unlist(i$mse_CE_mean))),
+                              t(sapply(bias_6_bart, function(i) unlist(i$mse_CE_mean))),
+                              t(sapply(bias_6_bcf, function(i) unlist(i$mse_CE_mean)))),
+                       list_model=c("CausalFA","StandardFA","bart","BCF"),
+                       xlab_name="Scenario 6", ylab_name="MSE")
+boxplot_models_general(data=c(t(sapply(bias_7_mix, function(i) unlist(i$mse_CE_mean))),
+                              t(sapply(bias_7_stand, function(i) unlist(i$mse_CE_mean))),
+                              t(sapply(bias_7_bart, function(i) unlist(i$mse_CE_mean))),
+                              t(sapply(bias_7_bcf, function(i) unlist(i$mse_CE_mean)))),
+                       list_model=c("CausalFA","StandardFA","bart","BCF"),
+                       xlab_name="Scenario 7", ylab_name="MSE")
+```
+
+### Check coverage
+
+```{r echo=FALSE, eval=FALSE}
+
+coverage_function<- function(true_ate, ite_intervals, perc_quant=0.95){
+  
+  dim_Y <- length(true_ate)
+  values <- c((1-perc_quant)/2,1-(1-perc_quant)/2)
+  quantiles_est <- apply(ite_intervals, 1, quantile, prob=values)
+  
+  coverage <- sapply(1:dim_Y, function(i) 1*(true_ate[i]<quantiles_est[2,i] &
+                                               true_ate[i]>quantiles_est[1,i]))
+  
+return(coverage=coverage)
+}
+
+#prepare BART data
+delist_bart_ate <- function(results){
+  return(sapply(results, function(d) unlist(d$mean_CE)))
+}
+#prepare BCF data
+delist_bcf_ate <- function(results){
+  seq_positions<- seq(1,length(results),2)+1
+  return(sapply(seq_positions, function(d) unlist(results[[d]])))
+}
+
+boxplot_coverage<-function(table_cov){
+  
+  dim_Y <- dim(table_cov)[2]-2
+  table_cov <- table_cov[,1:dim_Y]
+  name_models <- rownames(table_cov)
+  data_boxplot=as.data.frame(cbind(Xi=c(table_cov),
+                                   Q=rep(name_models,dim_Y)))
+  data_boxplot$Q=factor(data_boxplot$Q)
+  data_boxplot$Q=ordered(data_boxplot$Q, levels =name_models)
+  data_boxplot$Xi=as.numeric(data_boxplot$Xi)
+  
+  #pdf(file="bias_sim.pdf",width=10, height=5)
+  ggplot(data_boxplot, aes(x=Q, y=Xi, fill=Q, color=Q, alpha=0.2)) + 
+    geom_boxplot(lwd=0.3,fatten = 1.5, outlier.size = 0.3)+
+    theme(panel.background = element_rect(fill='white'),
+          plot.background = element_rect(fill ="white"),
+          axis.title = element_text(size=14),
+          legend.position = "top",
+          legend.text=element_text(size=10),
+          plot.title = element_text(hjust = 0.2),
+          title =element_text(size=18),
+          legend.background = element_rect(fill='transparent'),
+          panel.grid.major = element_line(color = "grey",size = 0.1))+
+    ylab("coverage") +
+    xlab('') +
+    labs(fill = "") +
+    guides(color = FALSE, alpha = FALSE)
+  #dev.off()
+}
+
+# print table
+table_coverage <- function(data_mix, data_stand, data_bart, data_bcf){
+  table_cov <- rbind(apply(data_mix, 1, mean),
+                     apply(data_stand, 1, mean),
+                     apply(data_bart, 1, mean),
+                     apply(data_bcf, 1, mean))
+  
+  var_name <- paste0('Y_', 1:(dim(table_cov)[2]))
+  rownames(table_cov) <- c("CausalFA","StandardFA","bart","BCF")
+  
+  table_cov <- cbind(table_cov, apply(table_cov,1,mean),apply(table_cov,1,median))
+  colnames(table_cov) <- c(var_name, 'mean', 'median')
+  
+  return(table_cov)
+}
+
+perc_cov=0.95
+
+# setting 1
+cov_1_mix <- sapply(1:n_sample, function(s) 
+  coverage_function(true_CE_1, model_1_mix[[s]]$CE_mean, perc_cov))
+cov_1_stand <- sapply(1:n_sample, function(s) 
+  coverage_function(true_CE_1, model_1_stand[[s]]$CE_mean, perc_cov))
+cov_1_bart <- sapply(1:n_sample, function(s) 
+  coverage_function(true_CE_1, delist_bart_ate(model_1_bart[[s]]), perc_cov))
+cov_1_bcf <- sapply(1:n_sample, function(s) 
+  coverage_function(true_CE_1, delist_bcf_ate(model_1_bcf[[s]][[1]]), perc_cov))
+# setting 2
+cov_2_mix <- sapply(1:n_sample, function(s) 
+  coverage_function(true_CE_2, model_2_mix[[s]]$CE_mean, perc_cov))
+cov_2_stand <- sapply(1:n_sample, function(s) 
+  coverage_function(true_CE_2, model_2_stand[[s]]$CE_mean, perc_cov))
+cov_2_bart <- sapply(1:n_sample, function(s) 
+  coverage_function(true_CE_2, delist_bart_ate(model_2_bart[[s]]), perc_cov))
+cov_2_bcf <- sapply(1:n_sample, function(s) 
+  coverage_function(true_CE_2, delist_bcf_ate(model_2_bcf[[s]][[1]]), perc_cov))
+# setting 3
+cov_3_mix <- sapply(1:n_sample, function(s) 
+  coverage_function(true_CE_3, model_3_mix[[s]]$CE_mean, perc_cov))
+cov_3_stand <- sapply(1:n_sample, function(s) 
+  coverage_function(true_CE_3, model_3_stand[[s]]$CE_mean, perc_cov))
+cov_3_bart <- sapply(1:n_sample, function(s) 
+  coverage_function(true_CE_3, delist_bart_ate(model_3_bart[[s]]), perc_cov))
+cov_3_bcf <- sapply(1:n_sample, function(s) 
+  coverage_function(true_CE_3, delist_bcf_ate(model_3_bcf[[s]][[1]]), perc_cov))
+# setting 4
+cov_4_mix <- sapply(1:n_sample, function(s) 
+  coverage_function(true_CE_4, model_4_mix[[s]]$CE_mean, perc_cov))
+cov_4_stand <- sapply(1:n_sample, function(s) 
+  coverage_function(true_CE_4, model_4_stand[[s]]$CE_mean, perc_cov))
+cov_4_bart <- sapply(1:n_sample, function(s) 
+  coverage_function(true_CE_4, delist_bart_ate(model_4_bart[[s]]), perc_cov))
+cov_4_bcf <- sapply(1:n_sample, function(s) 
+  coverage_function(true_CE_4, delist_bcf_ate(model_4_bcf[[s]][[1]]), perc_cov))
+# setting 5
+cov_5_mix <- sapply(1:n_sample, function(s) 
+  coverage_function(true_CE_5, model_5_mix[[s]]$CE_mean, perc_cov))
+cov_5_stand <- sapply(1:n_sample, function(s) 
+  coverage_function(true_CE_5, model_5_stand[[s]]$CE_mean, perc_cov))
+cov_5_bart <- sapply(1:n_sample, function(s) 
+  coverage_function(true_CE_5, delist_bart_ate(model_5_bart[[s]]), perc_cov))
+cov_5_bcf <- sapply(1:n_sample, function(s) 
+  coverage_function(true_CE_5, delist_bcf_ate(model_5_bcf[[s]][[1]]), perc_cov))
+# setting 6
+cov_6_mix <- sapply(1:n_sample, function(s) 
+  coverage_function(true_CE_6, model_6_mix[[s]]$CE_mean, perc_cov))
+cov_6_stand <- sapply(1:n_sample, function(s) 
+  coverage_function(true_CE_6, model_6_stand[[s]]$CE_mean, perc_cov))
+cov_6_bart <- sapply(1:n_sample, function(s) 
+  coverage_function(true_CE_6, delist_bart_ate(model_6_bart[[s]]), perc_cov))
+cov_6_bcf <- sapply(1:n_sample, function(s) 
+  coverage_function(true_CE_6, delist_bcf_ate(model_6_bcf[[s]][[1]]), perc_cov))
+# setting 7
+cov_7_mix <- sapply(1:n_sample, function(s) 
+  coverage_function(true_CE_7, model_7_mix[[s]]$CE_mean, perc_cov))
+cov_7_stand <- sapply(1:n_sample, function(s) 
+  coverage_function(true_CE_7, model_7_stand[[s]]$CE_mean, perc_cov))
+cov_7_bart <- sapply(1:n_sample, function(s) 
+  coverage_function(true_CE_7, delist_bart_ate(model_7_bart[[s]]), perc_cov))
+cov_7_bcf <- sapply(1:n_sample, function(s) 
+  coverage_function(true_CE_7, delist_bcf_ate(model_7_bcf[[s]][[1]]), perc_cov))
+
+table_cov_1 <- table_coverage(cov_1_mix,cov_1_stand,cov_1_bart,cov_1_bcf)
+table_cov_2 <- table_coverage(cov_2_mix,cov_2_stand,cov_2_bart,cov_2_bcf)
+table_cov_3 <- table_coverage(cov_3_mix,cov_3_stand,cov_3_bart,cov_3_bcf)
+table_cov_4 <- table_coverage(cov_4_mix,cov_4_stand,cov_4_bart,cov_4_bcf)
+table_cov_5 <- table_coverage(cov_5_mix,cov_5_stand,cov_5_bart,cov_5_bcf)
+table_cov_6 <- table_coverage(cov_6_mix,cov_6_stand,cov_6_bart,cov_6_bcf)
+table_cov_7 <- table_coverage(cov_7_mix,cov_7_stand,cov_7_bart,cov_7_bcf)
+
+boxplot_coverage(table_cov_1)
+boxplot_coverage(table_cov_2)
+boxplot_coverage(table_cov_3)
+boxplot_coverage(table_cov_4)
+boxplot_coverage(table_cov_5)
+boxplot_coverage(table_cov_6)
+boxplot_coverage(table_cov_7)
 
 ```
+

@@ -105,16 +105,13 @@ results_boxplot <- function(settings,n_settings, name_title, name_y, ylim_par){
   abline(h=0, col="green")
 }
 
-each_CE_plot<-function(data, dim_Y, name_title,name_y,ylim_par){
+each_CE_plot<-function(data, name_title,name_y,ylim_par){
   
-  data_boxplot<-cbind(apply(data[[1]],2,mean),1:dim_Y)
-  for(i in 2:n_sample){
-    temp <- cbind(apply(data[[i]],2,mean),1:dim_Y)
-    data_boxplot<- rbind(data_boxplot, temp)
-  }
+  dim_Y = dim(data)[1]
+  n_sample = dim(data)[2]
     
-  boxplot_dataset <- cbind(bias=c(data_boxplot[,1]), 
-                           sim=c(data_boxplot[,2]))
+  boxplot_dataset <- cbind(bias=c(data), 
+                           sim=rep(1:dim_Y,n_sample))
   
   boxplot(bias ~ sim, data=boxplot_dataset, 
           main=name_title, ylab=name_y, xlab="outcomes",
